@@ -3,12 +3,12 @@ using Photon.Pun;
 
 public class FoodItem : MonoBehaviour
 {
-    public int FoodIndex {  get; private set; }
+    [SerializeField] int _foodIndex;
     private MapGenerator _mapGenerator;
 
     public void Initialize(int index,MapGenerator generator)
     {
-        FoodIndex = index;
+        _foodIndex = index;
         _mapGenerator = generator;
     }
 
@@ -17,10 +17,14 @@ public class FoodItem : MonoBehaviour
         if (other.CompareTag("Player"))
         {
             PhotonView pv = other.GetComponent<PhotonView>();
-            if(pv != null && pv.IsMine)
+
+            if (MapGenerator.Instance != null)
             {
-                //이 인덱스의 먹이를 먹었다고 보고
-                _mapGenerator.RequestEatFood(FoodIndex);
+                MapGenerator.Instance.RequestEatFood(_foodIndex, pv.ViewID);
+            }
+            else
+            {
+                Debug.LogError("씬에 MapGenerator 인스턴스가 없습니다!");
             }
         }
     }

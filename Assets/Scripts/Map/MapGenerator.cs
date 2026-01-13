@@ -52,25 +52,41 @@ public class MapGenerator : MonoBehaviourPunCallbacks
         food.transform.position = spawnPos;
 
         FoodItem item = food.GetComponent<FoodItem>();
-        item.Initialize(index, this);
+        if (item != null)
+        {
+            item.Initialize(index, this);
+        }
+        else
+        {
+            Debug.LogError("Food 프리팹에 FoodItem 스크립트가 없습니다!");
+        }
 
-        _activeFoods.Add(index, food);
+        // 이미 존재하는 키인지 확인 후 추가 (오류 방지)
+        if (!_activeFoods.ContainsKey(index))
+        {
+            _activeFoods.Add(index, food);
+        }
     }
     //플레이어가 먹으면 호출
-    public void RequestEatFood(int index)
+    public void RequestEatFood(int index,int viewID)
     {
-        photonView.RPC("RPC_ProcessEat", RpcTarget.AllBuffered, index);
+        photonView.RPC(nameof(RPC_ProcessEat), RpcTarget.AllBuffered, index,viewID);
     }
 
     [PunRPC]
-    private void RPC_ProcessEat(int index)
+    private void RPC_ProcessEat(int index, int viewID)
     {
         if(_activeFoods.TryGetValue(index, out GameObject food))
         {
             _foodPool.Release(food); //풀로 반환
             _activeFoods.Remove(index);
 
-            //일정시간후 새로운위치에 재생성추가할려면 여기
+            //먹은유저 점수추가
+            PhotonView targetPlayer = PhotonView.Find(viewID);
+            if(targetPlayer != null && targetPlayer.IsMine)
+            {
+                targetPlayer.GetComponent<PlayerCtrl>().AddScore(1f);
+            }
         }
     }
 
