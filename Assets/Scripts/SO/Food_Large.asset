@@ -1,0 +1,18 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 26a9df1c82a88f24cb621aa67fe4f3ab, type: 3}
+  m_Name: Food_Large
+  m_EditorClassIdentifier: Assembly-CSharp::FoodData
+  foodName: Food_Large
+  scoreAmount: 20
+  scaleSize: 5
+  foodSprite: {fileID: 21300000, guid: f254e398beb012142a24633fa2b82def, type: 3}

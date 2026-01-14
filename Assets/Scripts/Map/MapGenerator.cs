@@ -12,6 +12,9 @@ public class MapGenerator : MonoBehaviourPunCallbacks
     [SerializeField] int _maxFoodOnMap = 1000;
     [SerializeField] float _mapSize = 100f;
 
+    [Header("먹이 데이터")]
+    [SerializeField] FoodData[] _foodTypes;
+
     //먹이 활성화 추적용 딕셔너리
     private Dictionary<int,GameObject> _activeFoods = new Dictionary<int,GameObject>();
 
@@ -51,10 +54,16 @@ public class MapGenerator : MonoBehaviourPunCallbacks
         GameObject food = _foodPool.Get();
         food.transform.position = spawnPos;
 
+        //확률로 먹이 다른거 스폰
+        int randomFood = _prng.Next(0, 100);
+        FoodData selectedData = _foodTypes[0];                 // 기본 1점짜리
+        if(randomFood > 98) selectedData = _foodTypes[2];      // 2퍼확률 젤큰거
+        else if(randomFood > 85) selectedData = _foodTypes[1]; //15퍼확률 중간크기
+
         FoodItem item = food.GetComponent<FoodItem>();
         if (item != null)
         {
-            item.Initialize(index, this);
+            item.Initialize(index, this,selectedData);
         }
         else
         {
@@ -78,11 +87,13 @@ public class MapGenerator : MonoBehaviourPunCallbacks
     {
         if(_activeFoods.TryGetValue(index, out GameObject food))
         {
+            float score = food.GetComponent<FoodItem>().CurrentScore; //먹이에서 점수정보 가져오기
+
             _foodPool.Release(food); //풀로 반환
             _activeFoods.Remove(index);
 
             //먹은유저 점수추가
-            AwardScore(viewID, 1f);
+            AwardScore(viewID, score);
         }
     }
 

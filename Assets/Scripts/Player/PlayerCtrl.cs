@@ -126,7 +126,7 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
         _currentScore += scoreAmount;
 
         UpdateScale();
-
+        Debug.Log($"현재스코어 : {_currentScore}");
     }
   
 

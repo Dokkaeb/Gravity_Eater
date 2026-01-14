@@ -207,7 +207,7 @@ Transform:
   m_GameObject: {fileID: 189369421}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: -3}
+  m_LocalPosition: {x: -20.77, y: 0, z: -3}
   m_LocalScale: {x: 0.3, y: 0.3, z: 0.3}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -308,6 +308,10 @@ MonoBehaviour:
   _foodPrefab: {fileID: 1645308259594785070, guid: b720eb2b401834445bc4963edeeca609, type: 3}
   _maxFoodOnMap: 1000
   _mapSize: 100
+  _foodTypes:
+  - {fileID: 11400000, guid: 3b75b6a0680d7564c84bc7f16d6fed72, type: 2}
+  - {fileID: 11400000, guid: aa92960a0733e55489d12ddeb75063a3, type: 2}
+  - {fileID: 11400000, guid: e2c1805726f60684fb91691303853da7, type: 2}
 --- !u!4 &737486561
 Transform:
   m_ObjectHideFlags: 0
@@ -516,7 +520,7 @@ TilemapRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: a97c105638bdf8b4a8650670310a4cd3, type: 2}
+  - {fileID: 2100000, guid: 4995931775895294f8958a776b45a8a3, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
