@@ -2,13 +2,14 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using Photon.Pun;
 
-public class PlayerCtrl : MonoBehaviourPun
+public class PlayerCtrl : MonoBehaviourPun, IPunObservable
 {
     public enum PlayerState { Move, Dash ,Dead }
 
     [Header("기본세팅")]
     [SerializeField] PlayerState _currentState = PlayerState.Move;
     [SerializeField] float _moveSpeed = 5f;
+    [SerializeField] float _rotateSpeed = 10f;
 
     [Header("성장 세팅")]
     [SerializeField] float _currentScore = 0;
@@ -27,9 +28,12 @@ public class PlayerCtrl : MonoBehaviourPun
         _rb = GetComponent<Rigidbody2D>();
     }
 
+
     private void Update()
     {
-        if (!photonView.IsMine) return;
+        if (!photonView.IsMine || _currentState == PlayerState.Dead) return;
+
+        HandleRotation();
 
         switch( _currentState)
         {
@@ -38,8 +42,6 @@ public class PlayerCtrl : MonoBehaviourPun
                 break;
             case PlayerState.Dash:
                 HandleDash();
-                break;
-            case PlayerState.Dead:
                 break;
         }
     }
@@ -50,12 +52,8 @@ public class PlayerCtrl : MonoBehaviourPun
         //마우스 스크린 좌표 받아오기
         Vector2 screenPos = ctx.ReadValue<Vector2>();
         _mousePos = Camera.main.ScreenToWorldPoint(screenPos);
-
-        if(_currentState != PlayerState.Dead && _currentState != PlayerState.Dash)
-        {
-            _currentState = PlayerState.Move;
-        }
     }
+
     public void OnDashInput(InputAction.CallbackContext ctx)
     {
         if(!photonView.IsMine || _currentState == PlayerState.Dead) return;
@@ -74,17 +72,28 @@ public class PlayerCtrl : MonoBehaviourPun
         _currentState = newState;
         Debug.Log("현재 상태: " + newState);
     }
+
+    //마우스 방향 바라보기
+    private void HandleRotation()
+    {
+        Vector2 dir = (_mousePos - (Vector2)transform.position).normalized;
+        if(dir != Vector2.zero)
+        {
+            float angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
+            Quaternion targetRotation = Quaternion.AngleAxis(angle - 90f, Vector3.forward);
+            transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * _rotateSpeed);
+        }
+    }
+
     //이동
     private void HandleMovement(float speed)
     {
-        //마우스 방향으로 이동
-        Vector2 dir = (_mousePos - (Vector2)transform.position).normalized;
         float distance = Vector2.Distance(transform.position, _mousePos);
 
         //마우스가 플레이어에 가까우면 멈춤
         if(distance > 0.1f)
         {
-            _rb.linearVelocity = dir * speed;
+            _rb.linearVelocity = transform.up * speed;
         }
         else
         {
@@ -102,8 +111,6 @@ public class PlayerCtrl : MonoBehaviourPun
 
             UpdateScale();
 
-            photonView.RPC(nameof(RPC_UpdateScore), RpcTarget.Others, _currentScore);
-
             HandleMovement(_moveSpeed * _dashMultiplier);
         }
         else
@@ -120,20 +127,56 @@ public class PlayerCtrl : MonoBehaviourPun
 
         UpdateScale();
 
-        photonView.RPC(nameof(RPC_UpdateScore), RpcTarget.Others, _currentScore);
     }
-    [PunRPC]
-    private void RPC_UpdateScore(float newScore)
-    {
-        _currentScore = newScore;
-        UpdateScale();
-    }
+  
 
     private void UpdateScale()
     {
         float newScale = _minScale + (_currentScore * _scaleMultiplier);
         transform.localScale = new Vector3(newScale, newScale, 1f);
 
+    }
 
+    //포톤 데이터 동기화
+    public void OnPhotonSerializeView(PhotonStream stream, PhotonMessageInfo info)
+    {
+        if (stream.IsWriting)
+        {
+            stream.SendNext(_currentScore); // 내점수 서버로 전송
+        }
+        else
+        {
+            // 다른플레이어 점수 수신하여 크기 업데이트
+            this._currentScore = (float)stream.ReceiveNext();
+            UpdateScale();
+        }
+    }
+
+    public void OnHeadHitSomething()
+    {
+        if(!photonView.IsMine || _currentState == PlayerState.Dead) return;
+
+        Debug.Log("머리가 상대 몸통에 닿았습니다");
+        OnDeath();
+    }
+
+    private void OnDeath()
+    {
+        _currentState = PlayerState.Dead;
+        _rb.linearVelocity = Vector2.zero;
+
+        float lootAmount = _currentScore * 0.5f; //점수 50퍼 전리품으로
+        if(MapGenerator.Instance != null)
+        {
+            MapGenerator.Instance.RequestSpawnLoot(transform.position, lootAmount);
+        }
+
+        photonView.RPC(nameof(RPC_OnDead), RpcTarget.All);
+    }
+
+    [PunRPC]
+    private void RPC_OnDead()
+    {
+        gameObject.SetActive(false);
     }
 }

@@ -18,13 +18,18 @@ public class FoodItem : MonoBehaviour
         {
             PhotonView pv = other.GetComponent<PhotonView>();
 
-            if (MapGenerator.Instance != null)
+            if (pv != null && pv.IsMine)
             {
-                MapGenerator.Instance.RequestEatFood(_foodIndex, pv.ViewID);
-            }
-            else
-            {
-                Debug.LogError("씬에 MapGenerator 인스턴스가 없습니다!");
+                if (_foodIndex != -1)
+                {
+                    // 일반 맵 생성 먹이
+                    _mapGenerator.RequestEatFood(_foodIndex, pv.ViewID);
+                }
+                else
+                {
+                    // 전리품 먹이 (인덱스 없음)
+                    _mapGenerator.RequestEatLoot(transform.position, pv.ViewID);
+                }
             }
         }
     }
