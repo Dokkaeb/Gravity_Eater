@@ -20,14 +20,31 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
     [SerializeField] float _dashMultiplier = 2.0f;
     [SerializeField] float _dashCostPerSecond = 2.0f;
 
+    [Header("시각 효과")]
+    [SerializeField] GameObject _dustEffect;
+    [SerializeField] float _dustTargetScore = 100f;
+    [SerializeField] float _dustRotationSpeed = 20f;
+
     Vector2 _mousePos;
     Rigidbody2D _rb;
+
+    PlayerScorePresenter _presenter; //ui 연결용
 
     private void Awake()
     {
         _rb = GetComponent<Rigidbody2D>();
     }
 
+    private void Start()
+    {
+        if (photonView.IsMine)
+        {
+            if(UIManager.Instance != null) //매니저에게 세팅요청
+            {
+                UIManager.Instance.ConnectScore(_currentScore);
+            }
+        }
+    }
 
     private void Update()
     {
@@ -44,6 +61,8 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
                 HandleDash();
                 break;
         }
+
+        UpdateVisualEffects();
     }
 
     public void OnPointerInput(InputAction.CallbackContext ctx)
@@ -110,7 +129,7 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
             if (_currentScore < 0) _currentScore = 0;
 
             UpdateScale();
-
+            UIManager.Instance?.UpdatePlayerScore(_currentScore);
             HandleMovement(_moveSpeed * _dashMultiplier);
         }
         else
@@ -126,7 +145,11 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
         _currentScore += scoreAmount;
 
         UpdateScale();
-        Debug.Log($"현재스코어 : {_currentScore}");
+        
+        if(UIManager.Instance != null) //UI 갱신 보고
+        {
+            UIManager.Instance.UpdatePlayerScore(_currentScore);
+        }
     }
   
 
@@ -178,5 +201,17 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
     private void RPC_OnDead()
     {
         gameObject.SetActive(false);
+    }
+
+    private void UpdateVisualEffects()
+    {
+        if(_dustEffect != null)
+        {
+            if(_currentScore >= _dustTargetScore)
+            {
+                _dustEffect.SetActive(true);
+                _dustEffect.transform.Rotate(0, 0, _dustRotationSpeed * Time.deltaTime);
+            }
+        }
     }
 }
