@@ -1,15 +1,14 @@
 using UnityEngine;
 using UnityEngine.UI;
-using TMPro;
 using Photon.Pun;
 using Photon.Realtime;
 
 public class LobbyManager : MonoBehaviourPunCallbacks
 {
     [Header("UI¿¬°á")]
-    [SerializeField] TMP_InputField _nickNameInput;
+    [SerializeField] InputField _nickNameInput;
     [SerializeField] Button _joinButton;
-    [SerializeField] TextMeshProUGUI _statusText;
+    [SerializeField] Text _statusText;
 
     string _gameVersion = "1";
 
