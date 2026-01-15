@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 using Photon.Pun;
+using System.Threading.Tasks;
 
 public class PlayerCtrl : MonoBehaviourPun, IPunObservable
 {
@@ -183,16 +184,33 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
         OnDeath();
     }
 
-    private void OnDeath()
+    private async void OnDeath()
     {
         _currentState = PlayerState.Dead;
         _rb.linearVelocity = Vector2.zero;
 
-        float lootAmount = _currentScore * 0.5f; //점수 50퍼 전리품으로
-        if(MapGenerator.Instance != null)
+        //점수기록
+        if (FirebaseManager.Instance != null)
         {
-            MapGenerator.Instance.RequestSpawnLoot(transform.position, lootAmount);
+            // async/await를 사용하여 비동기로 점수를 기록
+            try
+            {
+                string nick = (photonView.Owner != null && !string.IsNullOrEmpty(photonView.Owner.NickName))
+                              ? photonView.Owner.NickName : "Unknown";
+
+                await FirebaseManager.Instance.UpdateHighScore(nick, _currentScore);
+                Debug.Log("Firebase 업데이트 완료");
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"Firebase 업데이트 중 에러 발생: {e.Message}");
+            }
         }
+
+        UIManager.Instance?.ShowGlobalLeaderboard(); //리더보드 출력
+
+        float lootAmount = _currentScore * 0.5f; //점수 50퍼 전리품으로
+        MapGenerator.Instance?.RequestSpawnLoot(transform.position, lootAmount); //전리품생성
 
         photonView.RPC(nameof(RPC_OnDead), RpcTarget.All);
     }
