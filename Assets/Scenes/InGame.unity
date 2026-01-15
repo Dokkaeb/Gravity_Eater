@@ -272,7 +272,7 @@ MonoBehaviour:
   _smoothSpeed: 5
   _offset: {x: 0, y: 0, z: -10}
   _baseSize: 5
-  _zoomSensitivity: 5
+  _zoomSensitivity: 10
   _minSize: 5
   _maxSize: 100
 --- !u!1 &737486559
