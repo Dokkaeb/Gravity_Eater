@@ -1,8 +1,9 @@
-using UnityEngine;
 using Firebase;
 using Firebase.Database;
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using UnityEngine;
 
 public class FirebaseManager : MonoBehaviour
 {
@@ -11,13 +12,17 @@ public class FirebaseManager : MonoBehaviour
     DatabaseReference _dbRef;
     string _userID;
 
-    private void Awake()
+    // 초기화 완료 여부를 외부에서 기다릴 수 있도록 TaskCompletionSource 사용
+    private TaskCompletionSource<bool> _initializationTask = new TaskCompletionSource<bool>();
+    public Task WaitForInitialization => _initializationTask.Task;
+
+    private async void Awake()
     {
         if (Instance == null)
         {
             Instance = this;
             DontDestroyOnLoad(gameObject);
-            InitializeFirebase();
+            await InitializeFirebaseAsync();
         }
         else
         {
@@ -25,28 +30,50 @@ public class FirebaseManager : MonoBehaviour
         }
     }
 
-    private void InitializeFirebase()
+    private async Task InitializeFirebaseAsync()
     {
-        FirebaseApp.CheckAndFixDependenciesAsync().ContinueWith(task => {
-            var dependencyStatus = task.Result;
-            if(dependencyStatus == DependencyStatus.Available)
+        try
+        {
+            // 의존성 체크를 await로 처리 (ContinueWith 대신)
+            var dependencyStatus = await FirebaseApp.CheckAndFixDependenciesAsync();
+
+            if (dependencyStatus == DependencyStatus.Available)
             {
-                //초기화 성공시 참조 설정
                 _dbRef = FirebaseDatabase.DefaultInstance.RootReference;
-                //익명 로그인 사용하지 않는 경우 간단히 deviceID로 구분
-                _userID = SystemInfo.deviceUniqueIdentifier;
-                Debug.Log("파이어베이스 초기화 완료");
+                // --- [테스트용 유저 구분 로직 추가] ---
+                // 로컬 기기에 저장된 ID가 없다면 새로 생성
+                if (!PlayerPrefs.HasKey("TestUserID"))
+                {
+                    // GUID를 사용하여 절대 겹치지 않는 고유 문자열 생성
+                    string newID = "User_" + Guid.NewGuid().ToString().Substring(0, 8);
+                    PlayerPrefs.SetString("TestUserID", newID);
+                }
+
+                // 저장된 ID를 불러와서 사용
+                _userID = PlayerPrefs.GetString("TestUserID");
+                // ---------------------------------------
+
+                Debug.Log("<color=green><b>[Firebase]</b> 초기화 성공!</color>");
+
+                _initializationTask.SetResult(true);
             }
             else
             {
-                Debug.LogError($"Firebase 의존성 문제: {dependencyStatus}");
+                Debug.LogError($"[Firebase] 의존성 문제: {dependencyStatus}");
+                _initializationTask.SetResult(false);
             }
-        });
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"[Firebase] 초기화 중 예외 발생: {e.Message}");
+            _initializationTask.SetException(e);
+        }
     }
-    
+
     //사망시 호출되는 점수기록
     public async Task UpdateHighScore(string nickname,float score)
     {
+
         if(_dbRef == null) return;
 
         //최신점수 업데이트
@@ -63,25 +90,40 @@ public class FirebaseManager : MonoBehaviour
     //상위 10명 데이터 가져오기
     public async Task<List<ScoreEntry>> GetTopScoresAsync(int limit = 10)
     {
+        // 초기화가 완료될 때까지 대기
+        await WaitForInitialization;
+
         List<ScoreEntry> scores = new List<ScoreEntry>();
 
-        if(_dbRef==null) return scores;
-
-        //점수기준 내림차순 정렬해서 제한된 수만큼 가져오기
-        DataSnapshot snapshot = await _dbRef.Child("leaderboard")
-            .OrderByChild("score")
-            .LimitToLast(limit)
-            .GetValueAsync();
-
-        if (snapshot.Exists)
+        if (_dbRef == null)
         {
-            foreach(var child in snapshot.Children)
+            Debug.LogError("파이어베이스 데이터 레퍼런스가없음");
+            return scores;
+        }
+
+        try
+        {
+            // .GetValueAsync() 대신 .OrderByChild().LimitToLast() 사용 시 
+            // 서버 규칙에 반드시 indexOn이 있어야 합니다.
+            DataSnapshot snapshot = await _dbRef.Child("leaderboard")
+                .OrderByChild("score")
+                .LimitToLast(limit)
+                .GetValueAsync();
+
+            if (snapshot.Exists)
             {
-                string nick = child.Child("nickname").Value.ToString();
-                float sc = float.Parse(child.Child("score").Value.ToString());
-                scores.Add(new ScoreEntry(nick, sc));
+                foreach (var child in snapshot.Children)
+                {
+                    string nick = child.Child("nickname").Value?.ToString() ?? "Unknown";
+                    float sc = float.Parse(child.Child("score").Value?.ToString() ?? "0");
+                    scores.Add(new ScoreEntry(nick, sc));
+                }
+                scores.Reverse();
             }
-            scores.Reverse();
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"Firebase Query Error: {e.Message}");
         }
         return scores;
     }
