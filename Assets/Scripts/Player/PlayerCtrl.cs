@@ -26,24 +26,39 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
     [SerializeField] float _dustTargetScore = 100f;
     [SerializeField] float _dustRotationSpeed = 20f;
 
+    [Header("행성스킨 설정")]
+    [SerializeField] PlanetSkins _planetSkins;
+
     Vector2 _mousePos;
     Rigidbody2D _rb;
-
-    PlayerScorePresenter _presenter; //ui 연결용
+    SpriteRenderer _spr;
 
     private void Awake()
     {
         _rb = GetComponent<Rigidbody2D>();
+        _spr = GetComponent<SpriteRenderer>();
     }
 
     private void Start()
     {
         if (photonView.IsMine)
         {
-            if(UIManager.Instance != null) //매니저에게 세팅요청
+            int myIndex = PlayerPrefs.GetInt("SelectedPlanetIndex", 0);
+            photonView.RPC(nameof(RPC_ApplySkin), RpcTarget.AllBuffered, myIndex);
+
+            if (UIManager.Instance != null) //매니저에게 세팅요청
             {
                 UIManager.Instance.ConnectScore(_currentScore);
             }
+        }
+    }
+
+    [PunRPC]
+    private void RPC_ApplySkin(int index)
+    {
+        if (_spr != null && _planetSkins != null && index < _planetSkins.sprites.Length)
+        {
+            _spr.sprite = _planetSkins.sprites[index];
         }
     }
 
