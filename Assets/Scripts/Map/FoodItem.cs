@@ -3,7 +3,7 @@ using Photon.Pun;
 
 public class FoodItem : MonoBehaviour
 {
-    [SerializeField] int _foodIndex;
+    [SerializeField] int _foodID;
     MapGenerator _mapGenerator;
     SpriteRenderer _spr;
     public float CurrentScore {  get; private set; }
@@ -12,9 +12,9 @@ public class FoodItem : MonoBehaviour
     {
         _spr = GetComponent<SpriteRenderer>();
     }
-    public void Initialize(int index,MapGenerator generator,FoodData data = null)
+    public void Initialize(int id,MapGenerator generator,FoodData data = null)
     {
-        _foodIndex = index;
+        _foodID = id;
         _mapGenerator = generator;
 
         if(data != null)
@@ -28,7 +28,9 @@ public class FoodItem : MonoBehaviour
         }
         else
         {
+            //데이터가 없으면 기본세팅
             CurrentScore = 1f;
+            transform.localScale = Vector3.one;
         }
     }
 
@@ -40,15 +42,9 @@ public class FoodItem : MonoBehaviour
 
             if (pv != null && pv.IsMine)
             {
-                if (_foodIndex != -1)
+                if(_mapGenerator != null)
                 {
-                    // 일반 맵 생성 먹이
-                    _mapGenerator.RequestEatFood(_foodIndex, pv.ViewID);
-                }
-                else
-                {
-                    // 전리품 먹이 (인덱스 없음)
-                    _mapGenerator.RequestEatLoot(transform.position, pv.ViewID);
+                    _mapGenerator.RequestEatFood(_foodID,pv.ViewID);
                 }
             }
         }

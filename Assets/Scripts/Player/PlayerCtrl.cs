@@ -207,7 +207,7 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
             }
         }
 
-        UIManager.Instance?.ShowGlobalLeaderboard(); //리더보드 출력
+        UIManager.Instance?.ShowGlobalLeaderboard(true); //리더보드 출력
 
         float lootAmount = _currentScore * 0.5f; //점수 50퍼 전리품으로
         MapGenerator.Instance?.RequestSpawnLoot(transform.position, lootAmount); //전리품생성

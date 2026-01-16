@@ -40,7 +40,7 @@ public class FirebaseManager : MonoBehaviour
             if (dependencyStatus == DependencyStatus.Available)
             {
                 _dbRef = FirebaseDatabase.DefaultInstance.RootReference;
-                // --- [테스트용 유저 구분 로직 추가] ---
+                
                 // 로컬 기기에 저장된 ID가 없다면 새로 생성
                 if (!PlayerPrefs.HasKey("TestUserID"))
                 {
@@ -51,22 +51,22 @@ public class FirebaseManager : MonoBehaviour
 
                 // 저장된 ID를 불러와서 사용
                 _userID = PlayerPrefs.GetString("TestUserID");
-                // ---------------------------------------
+                
 
                 Debug.Log("<color=green><b>[Firebase]</b> 초기화 성공!</color>");
 
-                _initializationTask.SetResult(true);
+                _initializationTask.TrySetResult(true);
             }
             else
             {
                 Debug.LogError($"[Firebase] 의존성 문제: {dependencyStatus}");
-                _initializationTask.SetResult(false);
+                _initializationTask.TrySetResult(false);
             }
         }
         catch (Exception e)
         {
             Debug.LogError($"[Firebase] 초기화 중 예외 발생: {e.Message}");
-            _initializationTask.SetException(e);
+            _initializationTask.TrySetException(e);
         }
     }
 

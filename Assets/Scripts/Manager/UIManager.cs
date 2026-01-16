@@ -23,7 +23,11 @@ public class UIManager : MonoBehaviour
     private void Start()
     {
         _leaderboardPresenter = new LeaderboardPresenter(_leaderboardView, _firebaseManager);
-        _leaderboardPresenter.RefreshGlobalScores();
+        // 뷰에 프레젠터를 주입하여 뷰가 필요할 때 요청할 수 있게 함
+        _leaderboardView.Setup(_leaderboardPresenter);
+
+        // 시작 시 판넬은 꺼두기
+        _leaderboardView.TogglePanel(false);
     }
 
     //MVP연결
@@ -44,10 +48,9 @@ public class UIManager : MonoBehaviour
     }
 
     //사망시 또는 로비에서 호출
-    public void ShowGlobalLeaderboard()
+    public void ShowGlobalLeaderboard(bool show)
     {
-        _leaderboardPresenter.RefreshGlobalScores();
-        _leaderboardView.TogglePanel(true);
+        _leaderboardView.TogglePanel(show);
     }
 
     private void OnDestroy()
