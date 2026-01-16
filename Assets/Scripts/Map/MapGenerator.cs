@@ -1,5 +1,5 @@
 using UnityEngine;
-using UnityEngine.Pool;
+using System.Collections;
 using System.Collections.Generic;
 using Photon.Pun;
 
@@ -8,31 +8,23 @@ public class MapGenerator : MonoBehaviourPunCallbacks
     public static MapGenerator Instance;
 
     [Header("세팅")]
-    [SerializeField] GameObject _foodPrefab;
     [SerializeField] int _maxFoodOnMap = 1000;
     [SerializeField] float _mapSize = 100f;
 
     [Header("먹이 데이터")]
     [SerializeField] FoodData[] _foodTypes;
+    [SerializeField] float _respawnTime = 10f;
 
-    //먹이 활성화 추적용 딕셔너리
+    //먹이,전리품 활성화 추적용 딕셔너리
     private Dictionary<int,GameObject> _activeFoods = new Dictionary<int,GameObject>();
 
-    //내장 풀
-    private IObjectPool<GameObject> _foodPool;
+    //전리품 ID는 먹이랑 안곂치게 큰숫자부터 시작
+    private int _lootIdCounter = 100000;
     private System.Random _prng;
 
     private void Awake()
     {
         Instance = this;
-        _foodPool = new ObjectPool<GameObject>(
-            createFunc: () => Instantiate(_foodPrefab, transform), //부족하면 생성
-            actionOnGet: (obj) => obj.SetActive(true),             //풀에서 꺼낼때
-            actionOnRelease: (obj) => obj.SetActive(false),        //풀에 넣을 때 
-            actionOnDestroy: (obj) => Destroy(obj),                //풀에 넘칠 때 삭제
-            defaultCapacity: _maxFoodOnMap,
-            maxSize: 5000
-            );
     }
 
     //시드를 받아와 맵 만들기
@@ -42,109 +34,108 @@ public class MapGenerator : MonoBehaviourPunCallbacks
 
         for(int i =0; i < _maxFoodOnMap; i++)
         {
-           SpawnFoodByIndex(i);
+           SpawnFood(i);
         }
     }
-    private void SpawnFoodByIndex(int index)
+    private void SpawnFood(int id)
     {
         float x = (float)(_prng.NextDouble() * 2 - 1) * _mapSize;
         float y = (float)(_prng.NextDouble() * 2 - 1) * _mapSize;
-        Vector3 spawnPos = new Vector3(x, y, 0);
+        Vector3 pos = new Vector3(x, y, 0);
 
-        GameObject food = _foodPool.Get();
-        food.transform.position = spawnPos;
+        CreateFood(id, pos);
+    }
+
+    private void CreateFood(int id, Vector3 pos)
+    {
+        GameObject food = PoolManager.Instance.Get();
+        food.transform.position = pos;
+        food.SetActive(true);
 
         //확률로 먹이 다른거 스폰
-        int randomFood = _prng.Next(0, 100);
-        FoodData selectedData = _foodTypes[0];                 // 기본 1점짜리
-        if(randomFood > 98) selectedData = _foodTypes[2];      // 2퍼확률 젤큰거
-        else if(randomFood > 85) selectedData = _foodTypes[1]; //15퍼확률 중간크기
+        int rand = _prng.Next(0, 100);
+        FoodData data = _foodTypes[0];                 // 기본 1점짜리
+        if (rand > 98) data = _foodTypes[2];      // 2퍼확률 젤큰거
+        else if (rand > 85) data = _foodTypes[1]; //15퍼확률 중간크기
 
-        FoodItem item = food.GetComponent<FoodItem>();
-        if (item != null)
-        {
-            item.Initialize(index, this,selectedData);
-        }
-        else
-        {
-            Debug.LogError("Food 프리팹에 FoodItem 스크립트가 없습니다");
-        }
-
-        // 이미 존재하는 키인지 확인 후 추가
-        if (!_activeFoods.ContainsKey(index))
-        {
-            _activeFoods.Add(index, food);
-        }
+        food.GetComponent<FoodItem>().Initialize(id, this, data);
+        _activeFoods[id] = food;
     }
     //플레이어가 먹으면 호출
-    public void RequestEatFood(int index,int viewID)
+    public void RequestEatFood(int id,int viewID)
     {
-        photonView.RPC(nameof(RPC_ProcessEat), RpcTarget.AllBuffered, index,viewID);
+        //AllBuffered를 써서 나중에 들어온 유저도 뭘먹었는지 알수있게
+        photonView.RPC(nameof(RPC_ProcessEat), RpcTarget.AllBuffered, id,viewID);
     }
 
     [PunRPC]
-    private void RPC_ProcessEat(int index, int viewID)
+    private void RPC_ProcessEat(int id, int viewID)
     {
-        if(_activeFoods.TryGetValue(index, out GameObject food))
+        if(_activeFoods.TryGetValue(id, out GameObject food))
         {
             float score = food.GetComponent<FoodItem>().CurrentScore; //먹이에서 점수정보 가져오기
+            Vector3 lastPos = food.transform.position; //먹힌 위치 기억
 
-            _foodPool.Release(food); //풀로 반환
-            _activeFoods.Remove(index);
+            PoolManager.Instance.Release(food);
+            _activeFoods.Remove(id);
 
             //먹은유저 점수추가
             AwardScore(viewID, score);
+
+            //일반 먹이 일정시간후 재생성
+            if(id< 100000 && PhotonNetwork.IsMasterClient)
+            {
+                StartCoroutine(Co_RespawnFood(id,lastPos));
+            }
         }
     }
 
+    //재생성 코루틴
+    IEnumerator Co_RespawnFood(int id,Vector3 pos)
+    {
+        yield return new WaitForSeconds(_respawnTime);
+
+        photonView.RPC(nameof(RPC_SpawnSpecificFood),RpcTarget.All,id, pos);
+    }
+
+    //특정위치에 먹이생성RPC
+    [PunRPC]
+    private void RPC_SpawnSpecificFood(int id,Vector3 pos)
+    {
+        CreateFood(id, pos);
+    }
+
+    //전리품 생성
     public void RequestSpawnLoot(Vector3 pos,float lootScore)
     {
-        photonView.RPC(nameof(RPC_ProcessLoot), RpcTarget.MasterClient, pos, lootScore);
-    }
-
-    [PunRPC]
-    private void RPC_ProcessLoot(Vector3 pos,float amount)
-    {
-        //점수 50프로 먹이로 치환
-        int count = Mathf.FloorToInt(amount);
-
-        for(int i = 0; i< count; i++)
+        if (PhotonNetwork.IsMasterClient)
         {
-            //사망위치 근처에 랜덤으로 분산
-            Vector2 randomOffset = Random.insideUnitCircle * (1.5f + (count * 0.05f));
-            Vector3 spawnPos = pos + new Vector3(randomOffset.x, randomOffset.y, 0);
+            int count = Mathf.FloorToInt(lootScore);
+            for(int i = 0; i < count; i++)
+            {
+                int newId = _lootIdCounter++; //전리품에 마스터가 id부여
+                Vector2 offset = Random.insideUnitCircle * (1.5f + (count * 0.05f));
+                Vector3 spawnPos = pos + (Vector3)offset;
 
-            //모든 유저에게 전리품 생상 명령
-            photonView.RPC(nameof(RPC_SpawnLootAtPos), RpcTarget.All, spawnPos);
+                //올버퍼로 나중에 들어온 사람도 전리품 보이게
+                photonView.RPC(nameof(RPC_SpawnLoot), RpcTarget.AllBuffered, newId, spawnPos);
+            }
         }
+        
     }
 
     [PunRPC]
-    private void RPC_SpawnLootAtPos(Vector3 pos)
+    private void RPC_SpawnLoot(int id,Vector3 pos)
     {
-        GameObject loot = _foodPool.Get();
+        GameObject loot = PoolManager.Instance.Get();
         loot.transform.position = pos;
+        loot.SetActive(true);
 
-        // -1 은 고유번호없는 전리품
-        loot.GetComponent<FoodItem>().Initialize(-1, this);
+        loot.GetComponent<FoodItem>().Initialize(id, this, _foodTypes[0]); //1점짜리 소환
+        _activeFoods[id] = loot;
     }
 
-    //전리품 (인덱스 -1 ) 전용 먹기호출
-    public void RequestEatLoot(Vector3 pos, int viewID)
-    {
-        photonView.RPC(nameof(RPC_ProcessEatLoot),RpcTarget.All, pos, viewID);
-    }
 
-    [PunRPC]
-    private void RPC_ProcessEatLoot(Vector3 pos, int viewID)
-    {
-        Collider2D hit = Physics2D.OverlapPoint(pos);
-        if(hit != null && hit.CompareTag("Food"))
-        {
-            _foodPool.Release(hit.gameObject);
-            AwardScore(viewID, 1f);
-        }
-    }
 
     private void AwardScore(int viewID,float amount)
     {
