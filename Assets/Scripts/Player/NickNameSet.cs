@@ -30,6 +30,8 @@ public class NickNameSet : MonoBehaviourPun
 
         transform.rotation = Quaternion.identity;
 
-        transform.position = _playerTransform.position + _offset;
+        float currentScale = _playerTransform.localScale.x;
+
+        transform.position = _playerTransform.position + (currentScale * _offset);
     }
 }
