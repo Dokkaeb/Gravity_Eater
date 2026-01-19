@@ -1,7 +1,6 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 using Photon.Pun;
-using System.Threading.Tasks;
 
 public class PlayerCtrl : MonoBehaviourPun, IPunObservable
 {
@@ -16,6 +15,7 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
     [SerializeField] float _currentScore = 0;
     [SerializeField] float _scaleMultiplier = 0.1f; //점수당 크기증가 비율
     [SerializeField] float _minScale = 1.0f;
+    [SerializeField] float _maxScale = 2.5f;
 
     [Header("대시 세팅")]
     [SerializeField] float _dashMultiplier = 2.0f;
@@ -23,11 +23,14 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
 
     [Header("시각 효과")]
     [SerializeField] GameObject _dustEffect;
-    [SerializeField] float _dustTargetScore = 100f;
     [SerializeField] float _dustRotationSpeed = 20f;
+    [SerializeField] float _dustTargetScore = 100f;
+    [SerializeField] float _toStarTargetScore = 300f;
+    bool _isStar = false;
 
-    [Header("행성스킨 설정")]
+    [Header("행성스킨 SO")]
     [SerializeField] PlanetSkins _planetSkins;
+    [SerializeField] PlanetSkins _starSkins;
 
     Vector2 _mousePos;
     Rigidbody2D _rb;
@@ -171,8 +174,9 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
 
     private void UpdateScale()
     {
-        float newScale = _minScale + (_currentScore * _scaleMultiplier);
-        transform.localScale = new Vector3(newScale, newScale, 1f);
+        float calculatedScale = _minScale + (_currentScore * _scaleMultiplier);
+        float finalScale = Mathf.Clamp(calculatedScale, _minScale, _maxScale);
+        transform.localScale = new Vector3(finalScale, finalScale, 1f);
 
     }
 
@@ -230,6 +234,30 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
                 _dustEffect.SetActive(true);
                 _dustEffect.transform.Rotate(0, 0, _dustRotationSpeed * Time.deltaTime);
             }
+        }
+        if(_starSkins != null && !_isStar)
+        {
+            if(_currentScore >= _toStarTargetScore)
+            {
+                ChangeToStar();
+            }
+        }
+    }
+
+    private void ChangeToStar()
+    {
+        _isStar = true;
+
+        int randomIndex = Random.Range(0,_starSkins.sprites.Length);
+
+        photonView.RPC(nameof(RPC_ApplyStarSkin), RpcTarget.AllBuffered, randomIndex);
+    }
+    [PunRPC]
+    private void RPC_ApplyStarSkin(int index)
+    {
+        if (_spr != null && _starSkins != null && index < _starSkins.sprites.Length)
+        {
+            _spr.sprite = _starSkins.sprites[index];
         }
     }
 }
