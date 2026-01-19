@@ -25,6 +25,8 @@ public class LeaderboardView : MonoBehaviour
 
     public void TogglePanel(bool active)
     {
+        if (active == gameObject.activeSelf && !active) return;
+
         if (_currentAnim != null) StopCoroutine(_currentAnim);
 
         if (active)
@@ -37,7 +39,10 @@ public class LeaderboardView : MonoBehaviour
         }
         else
         {
-            _currentAnim = StartCoroutine(Co_AnimatePanel(0f)); // 아래에서 위로 접기
+            if (gameObject.activeInHierarchy)
+            {
+                _currentAnim = StartCoroutine(Co_AnimatePanel(0f));
+            }
         }
     }
 

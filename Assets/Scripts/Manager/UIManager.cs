@@ -1,3 +1,4 @@
+using TMPro;
 using UnityEngine;
 
 public class UIManager : MonoBehaviour
@@ -12,6 +13,11 @@ public class UIManager : MonoBehaviour
     [SerializeField] LeaderboardView _leaderboardView;
     LeaderboardPresenter _leaderboardPresenter;
 
+    [Header("사망 UI")]
+    [SerializeField] GameObject _deathPanel;
+    [SerializeField] TextMeshProUGUI _finalScoreTxt;
+
+    [Header("파이어 베이스 매니저")]
     [SerializeField] private FirebaseManager _firebaseManager;
 
     private void Awake()
@@ -25,9 +31,6 @@ public class UIManager : MonoBehaviour
         _leaderboardPresenter = new LeaderboardPresenter(_leaderboardView, _firebaseManager);
         // 뷰에 프레젠터를 주입하여 뷰가 필요할 때 요청할 수 있게 함
         _leaderboardView.Setup(_leaderboardPresenter);
-
-        // 시작 시 판넬은 꺼두기
-        _leaderboardView.TogglePanel(false);
     }
 
     //MVP연결
@@ -56,5 +59,24 @@ public class UIManager : MonoBehaviour
     private void OnDestroy()
     {
         _scorePresenter?.Dispose();
+    }
+
+    public void ShowDeathUI(float finalScore)
+    {
+        if(_deathPanel != null)
+        {
+            _deathPanel.SetActive(true);
+            _finalScoreTxt.text = $"Final Score: {finalScore:F0}";
+        }
+        ShowGlobalLeaderboard(true);
+    }
+
+    public void OnClickExitButton()
+    {
+        // 현재 점수를 Presenter에서 가져옴
+        float score = _scorePresenter != null ? _scorePresenter.GetCurrentScore() : 0;
+
+        // 전담 매니저에게 나가는 프로세스 위임
+        GameExitManager.Instance.ExitToMain(score);
     }
 }

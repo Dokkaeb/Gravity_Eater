@@ -22,4 +22,10 @@ public class PlayerScorePresenter
     {
         _model.OnScoreChanged -= _view.UpdateScoreDisPlay;
     }
+
+    //현재점수 가져오기
+    public float GetCurrentScore()
+    {
+        return _model.Score; 
+    }
 }

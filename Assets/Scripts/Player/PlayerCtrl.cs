@@ -191,7 +191,7 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
         }
     }
 
-    public void OnHeadHitSomething()
+    public void OnHeadHitOhterPlayer()
     {
         if(!photonView.IsMine || _currentState == PlayerState.Dead) return;
 
@@ -199,30 +199,15 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
         OnDeath();
     }
 
-    private async void OnDeath()
+    private void OnDeath()
     {
         _currentState = PlayerState.Dead;
         _rb.linearVelocity = Vector2.zero;
 
-        //점수기록
-        if (FirebaseManager.Instance != null)
+        if (UIManager.Instance != null)
         {
-            // async/await를 사용하여 비동기로 점수를 기록
-            try
-            {
-                string nick = (photonView.Owner != null && !string.IsNullOrEmpty(photonView.Owner.NickName))
-                              ? photonView.Owner.NickName : "Unknown";
-
-                await FirebaseManager.Instance.UpdateHighScore(nick, _currentScore);
-                Debug.Log("Firebase 업데이트 완료");
-            }
-            catch (System.Exception e)
-            {
-                Debug.LogError($"Firebase 업데이트 중 에러 발생: {e.Message}");
-            }
+            UIManager.Instance.ShowDeathUI(_currentScore);
         }
-
-        UIManager.Instance?.ShowGlobalLeaderboard(true); //리더보드 출력
 
         float lootAmount = _currentScore * 0.5f; //점수 50퍼 전리품으로
         MapGenerator.Instance?.RequestSpawnLoot(transform.position, lootAmount); //전리품생성

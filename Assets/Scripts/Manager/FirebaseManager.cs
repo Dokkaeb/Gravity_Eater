@@ -41,17 +41,7 @@ public class FirebaseManager : MonoBehaviour
             {
                 _dbRef = FirebaseDatabase.DefaultInstance.RootReference;
                 
-                // 로컬 기기에 저장된 ID가 없다면 새로 생성
-                if (!PlayerPrefs.HasKey("TestUserID"))
-                {
-                    // GUID를 사용하여 절대 겹치지 않는 고유 문자열 생성
-                    string newID = "User_" + Guid.NewGuid().ToString().Substring(0, 8);
-                    PlayerPrefs.SetString("TestUserID", newID);
-                }
-
-                // 저장된 ID를 불러와서 사용
-                _userID = PlayerPrefs.GetString("TestUserID");
-                
+                GenerateNewUserID();
 
                 Debug.Log("<color=green><b>[Firebase]</b> 초기화 성공!</color>");
 
@@ -68,6 +58,11 @@ public class FirebaseManager : MonoBehaviour
             Debug.LogError($"[Firebase] 초기화 중 예외 발생: {e.Message}");
             _initializationTask.TrySetException(e);
         }
+    }
+    // ID를 새로 발급
+    public void GenerateNewUserID()
+    {
+        _userID = "User_" + Guid.NewGuid().ToString().Substring(0, 8);
     }
 
     //사망시 호출되는 점수기록
