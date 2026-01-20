@@ -8,6 +8,10 @@ public class SoundManager : MonoBehaviour
     [SerializeField] AudioSource _bgmSource;
     [SerializeField] AudioSource _sfxSource;
 
+    //볼륨 설정 저장할 키값
+    const string BGM_VOLUME_KEY = "BGM_Volume";
+    const string SFX_VOLUME_KEY = "SFX_Volume";
+
     private void Awake()
     {
         if(Instance == null)
@@ -22,6 +26,11 @@ public class SoundManager : MonoBehaviour
     }
     private void Start()
     {
+        float bgmVol = PlayerPrefs.GetFloat(BGM_VOLUME_KEY, 0.5f);
+        float sfxVol = PlayerPrefs.GetFloat(SFX_VOLUME_KEY, 0.5f);
+
+
+
         PlayRandomBGM();
     }
     private void Update()
@@ -53,4 +62,19 @@ public class SoundManager : MonoBehaviour
             _sfxSource.PlayOneShot(clip);
         }
     }
+
+    public void SetBGMVolume(float volume)
+    {
+        _bgmSource.volume = volume;
+        PlayerPrefs.SetFloat(BGM_VOLUME_KEY, volume);
+    }
+    public void SetSFXVolume(float volume)
+    {
+        _sfxSource.volume = volume;
+        PlayerPrefs.SetFloat(SFX_VOLUME_KEY, volume);
+    }
+
+    //슬라이더 초기화용 현재 설정된 볼륨값 가져오는 메서드
+    public float GetBGMVolume() => PlayerPrefs.GetFloat(BGM_VOLUME_KEY,0.5f);
+    public float GetSFXVolume() => PlayerPrefs.GetFloat(SFX_VOLUME_KEY,0.5f);
 }
