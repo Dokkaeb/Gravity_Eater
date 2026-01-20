@@ -32,6 +32,11 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
     [SerializeField] PlanetSkins _planetSkins;
     [SerializeField] PlanetSkins _starSkins;
 
+    [Header("슬로우 설정")]
+    float _slowMultiplier = 1f;
+
+    public float SlowMultiplier => _slowMultiplier;
+
     Vector2 _mousePos;
     Rigidbody2D _rb;
     SpriteRenderer _spr;
@@ -131,7 +136,7 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
         //마우스가 플레이어에 가까우면 멈춤
         if(distance > 0.1f)
         {
-            _rb.linearVelocity = transform.up * speed;
+            _rb.linearVelocity = transform.up * (speed * SlowMultiplier);
         }
         else
         {
@@ -178,6 +183,18 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
         float finalScale = Mathf.Clamp(calculatedScale, _minScale, _maxScale);
         transform.localScale = new Vector3(finalScale, finalScale, 1f);
 
+    }
+
+    public void UpdateSlowState(bool isSlow,float multiplier = 1f)
+    {
+        if (isSlow)
+        {
+            _slowMultiplier = multiplier;
+        }
+        else
+        {
+            _slowMultiplier = 1f;
+        }
     }
 
     //포톤 데이터 동기화

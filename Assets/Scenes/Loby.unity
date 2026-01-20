@@ -241,18 +241,6 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 1932509631}
-        m_TargetAssemblyTypeName: LobbyManager, Assembly-CSharp
-        m_MethodName: OnClickConnect
-        m_Mode: 1
-        m_Arguments:
-          m_ObjectArgument: {fileID: 0}
-          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
-          m_IntArgument: 0
-          m_FloatArgument: 0
-          m_StringArgument: 
-          m_BoolArgument: 0
-        m_CallState: 2
       - m_Target: {fileID: 25624717}
         m_TargetAssemblyTypeName: SoundSetButton, Assembly-CSharp
         m_MethodName: OnSelectSound
@@ -6749,6 +6737,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8fc88ae5cf0e4c943aef501e53494823, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LobyUIManager
+  _nickNameInput: {fileID: 229217981}
+  _joinButton: {fileID: 25624716}
+  _quitButton: {fileID: 1838865890}
+  _statusText: {fileID: 1416355421}
   _leaderboardView: {fileID: 1285518488}
 --- !u!4 &1727336704
 Transform:
@@ -7311,18 +7303,6 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 1382092957}
-        m_TargetAssemblyTypeName: GameExitManager, Assembly-CSharp
-        m_MethodName: QuitGame
-        m_Mode: 1
-        m_Arguments:
-          m_ObjectArgument: {fileID: 0}
-          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
-          m_IntArgument: 0
-          m_FloatArgument: 0
-          m_StringArgument: 
-          m_BoolArgument: 0
-        m_CallState: 2
       - m_Target: {fileID: 1838865893}
         m_TargetAssemblyTypeName: SoundSetButton, Assembly-CSharp
         m_MethodName: OnBackSound
@@ -7785,9 +7765,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b13533bec88408b4f92759c36d2928ea, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LobbyManager
-  _nickNameInput: {fileID: 229217981}
-  _joinButton: {fileID: 25624716}
-  _statusText: {fileID: 1416355421}
 --- !u!4 &1932509632
 Transform:
   m_ObjectHideFlags: 0

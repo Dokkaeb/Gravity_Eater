@@ -4,8 +4,7 @@ using System.Collections.Generic;
 public class PoolManager : MonoBehaviour
 {
     public static PoolManager Instance;
-    [SerializeField] GameObject _foodPrefab;
-    List<GameObject> _pool = new List<GameObject>();
+    Dictionary<GameObject, List<GameObject>> _pools = new Dictionary<GameObject, List<GameObject>>();
 
     private void Awake()
     {
@@ -13,16 +12,22 @@ public class PoolManager : MonoBehaviour
     }
 
     // 풀에서 하나 꺼내오기
-    public GameObject Get()
+    public GameObject Get(GameObject prefab)
     {
-        foreach (var obj in _pool)
+        if (!_pools.ContainsKey(prefab))
+            _pools.Add(prefab, new List<GameObject>());
+
+        foreach (var obj in _pools[prefab])
         {
-            if (!obj.activeSelf) return obj;
+            if (!obj.activeSelf)
+            {
+                obj.SetActive(true);
+                return obj;
+            }
         }
 
-        // 비활성화된 게 없으면 생성
-        GameObject newObj = Instantiate(_foodPrefab, transform);
-        _pool.Add(newObj);
+        GameObject newObj = Instantiate(prefab, transform);
+        _pools[prefab].Add(newObj);
         return newObj;
     }
 

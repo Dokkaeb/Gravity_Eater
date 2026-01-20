@@ -2391,11 +2391,17 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::MapGenerator
   _maxFoodOnMap: 1000
   _mapSize: 100
+  _foodPrefab: {fileID: 1645308259594785070, guid: b720eb2b401834445bc4963edeeca609, type: 3}
+  _nebulaPrefab: {fileID: 9148203863873650618, guid: 70a9929de53f3ff49af42cfd529fecb5, type: 3}
   _foodTypes:
   - {fileID: 11400000, guid: 3b75b6a0680d7564c84bc7f16d6fed72, type: 2}
   - {fileID: 11400000, guid: aa92960a0733e55489d12ddeb75063a3, type: 2}
   - {fileID: 11400000, guid: e2c1805726f60684fb91691303853da7, type: 2}
+  _nebulaTypes:
+  - {fileID: 11400000, guid: 573405493c256494d99fdf5c4a85fd46, type: 2}
+  - {fileID: 11400000, guid: 72c3a5d626e450b4681369999ddeb493, type: 2}
   _respawnTime: 10
+  _nebulaSpawnInterval: 15
 --- !u!4 &737486561
 Transform:
   m_ObjectHideFlags: 0
@@ -4984,7 +4990,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c347da63df23f0241bd6d8c15720df32, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PoolManager
-  _foodPrefab: {fileID: 1645308259594785070, guid: b720eb2b401834445bc4963edeeca609, type: 3}
 --- !u!4 &1485875730
 Transform:
   m_ObjectHideFlags: 0

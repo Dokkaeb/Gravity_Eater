@@ -11,9 +11,15 @@ public class MapGenerator : MonoBehaviourPunCallbacks
     [SerializeField] int _maxFoodOnMap = 1000;
     [SerializeField] float _mapSize = 100f;
 
-    [Header("먹이 데이터")]
+    [Header("프리팹 설정")]
+    [SerializeField] GameObject _foodPrefab;
+    [SerializeField] GameObject _nebulaPrefab;
+
+    [Header("데이터")]
     [SerializeField] FoodData[] _foodTypes;
+    [SerializeField] NebulaData[] _nebulaTypes;
     [SerializeField] float _respawnTime = 10f;
+    [SerializeField] float _nebulaSpawnInterval = 15f;
 
     //먹이,전리품 활성화 추적용 딕셔너리
     private Dictionary<int,GameObject> _activeFoods = new Dictionary<int,GameObject>();
@@ -36,6 +42,11 @@ public class MapGenerator : MonoBehaviourPunCallbacks
         {
            SpawnFood(i);
         }
+
+        if (PhotonNetwork.IsMasterClient)
+        {
+            StartCoroutine(Co_NebulaSpawner());
+        }
     }
     private void SpawnFood(int id)
     {
@@ -48,7 +59,7 @@ public class MapGenerator : MonoBehaviourPunCallbacks
 
     private void CreateFood(int id, Vector3 pos)
     {
-        GameObject food = PoolManager.Instance.Get();
+        GameObject food = PoolManager.Instance.Get(_foodPrefab);
         food.transform.position = pos;
         food.SetActive(true);
 
@@ -127,7 +138,7 @@ public class MapGenerator : MonoBehaviourPunCallbacks
     [PunRPC]
     private void RPC_SpawnLoot(int id,Vector3 pos)
     {
-        GameObject loot = PoolManager.Instance.Get();
+        GameObject loot = PoolManager.Instance.Get(_foodPrefab);
         loot.transform.position = pos;
         loot.SetActive(true);
 
@@ -144,5 +155,32 @@ public class MapGenerator : MonoBehaviourPunCallbacks
         {
             targetPlayer.GetComponent<PlayerCtrl>().AddScore(amount);
         }
+    }
+
+    IEnumerator Co_NebulaSpawner()
+    {
+        yield return new WaitForSeconds(5f);
+
+        while (true)
+        {
+            yield return new WaitForSeconds(_nebulaSpawnInterval);
+
+            float x = Random.Range(-_mapSize, _mapSize);
+            float y = Random.Range(-_mapSize, _mapSize);
+            Vector3 spawnPos = new Vector3(x, y, 0);
+            int dataIdx = Random.Range(0, _nebulaTypes.Length);
+
+            photonView.RPC(nameof(RPC_SpawnNebula), RpcTarget.All, spawnPos, dataIdx);
+        }
+    }
+
+    [PunRPC]
+    private void RPC_SpawnNebula(Vector3 pos,int dataIdx)
+    {
+        GameObject nebulaObj = PoolManager.Instance.Get(_nebulaPrefab);
+        nebulaObj.transform.position = pos;
+        nebulaObj.SetActive(true);
+
+        nebulaObj.GetComponent<Nebula>().Setup(_nebulaTypes[dataIdx]);
     }
 }

@@ -35,8 +35,8 @@ public class GameLauncher : MonoBehaviourPunCallbacks
     }
     private void SpawnPlayer()
     {
-        float randomX = Random.Range(-10f, 10f);
-        float randomY = Random.Range(-10f, 10f);
+        float randomX = Random.Range(-70f, 70f);
+        float randomY = Random.Range(-70f, 70f);
         Vector3 spawnPos = new Vector3(randomX, randomY, 0);
 
         PhotonNetwork.Instantiate("Prefabs/Player", spawnPos,Quaternion.identity);
