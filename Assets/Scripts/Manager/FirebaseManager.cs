@@ -40,7 +40,7 @@ public class FirebaseManager : MonoBehaviour
             if (dependencyStatus == DependencyStatus.Available)
             {
                 _dbRef = FirebaseDatabase.DefaultInstance.RootReference;
-                
+
                 GenerateNewUserID();
 
                 Debug.Log("<color=green><b>[Firebase]</b> 초기화 성공!</color>");
@@ -66,10 +66,10 @@ public class FirebaseManager : MonoBehaviour
     }
 
     //사망시 호출되는 점수기록
-    public async Task UpdateHighScore(string nickname,float score)
+    public async Task UpdateHighScore(string nickname, float score)
     {
 
-        if(_dbRef == null) return;
+        if (_dbRef == null) return;
 
         //최신점수 업데이트
         var data = new Dictionary<string, object>
@@ -85,41 +85,56 @@ public class FirebaseManager : MonoBehaviour
     //상위 10명 데이터 가져오기
     public async Task<List<ScoreEntry>> GetTopScoresAsync(int limit = 10)
     {
-        // 초기화가 완료될 때까지 대기
         await WaitForInitialization;
-
         List<ScoreEntry> scores = new List<ScoreEntry>();
 
-        if (_dbRef == null)
-        {
-            Debug.LogError("파이어베이스 데이터 레퍼런스가없음");
-            return scores;
-        }
+        if (_dbRef == null) return scores;
 
-        try
-        {
-            // .GetValueAsync() 대신 .OrderByChild().LimitToLast() 사용 시 
-            // 서버 규칙에 반드시 indexOn이 있어야 합니다.
-            DataSnapshot snapshot = await _dbRef.Child("leaderboard")
-                .OrderByChild("score")
-                .LimitToLast(limit)
-                .GetValueAsync();
+        // 리더보드 노드를 실시간 동기화 (연결성 개선)
+        _dbRef.Child("leaderboard").KeepSynced(true);
 
-            if (snapshot.Exists)
+        int maxRetries = 5; // 재접속 시도 횟수
+        for (int i = 0; i < maxRetries; i++)
+        {
+            try
             {
-                foreach (var child in snapshot.Children)
+                // 쿼리 작업 생성
+                var queryTask = _dbRef.Child("leaderboard")
+                    .OrderByChild("score")
+                    .LimitToLast(limit)
+                    .GetValueAsync();
+
+                // 타임아웃 설정 (3초 안에 응답 없으면 취소로 간주)
+                var timeoutTask = Task.Delay(3000);
+                var completedTask = await Task.WhenAny(queryTask, timeoutTask);
+
+                if (completedTask == queryTask)
                 {
-                    string nick = child.Child("nickname").Value?.ToString() ?? "Unknown";
-                    float sc = float.Parse(child.Child("score").Value?.ToString() ?? "0");
-                    scores.Add(new ScoreEntry(nick, sc));
+                    DataSnapshot snapshot = await queryTask;
+
+                    if (snapshot.Exists && snapshot.ChildrenCount > 0)
+                    {
+                        foreach (var child in snapshot.Children)
+                        {
+                            string nick = child.Child("nickname").Value?.ToString() ?? "Unknown";
+                            float sc = Convert.ToSingle(child.Child("score").Value ?? 0);
+                            scores.Add(new ScoreEntry(nick, sc));
+                        }
+                        scores.Reverse();
+                        return scores;
+                    }
                 }
-                scores.Reverse();
+
+                Debug.LogWarning($"[Firebase] {i + 1}번째 시도 실패 (타임아웃 또는 데이터 없음). 재시도 중...");
             }
+            catch (Exception e)
+            {
+                Debug.LogError($"[Firebase] 시도 {i} 중 예외: {e.Message}");
+            }
+
+            await Task.Delay(1000); // 재시도 간격을 1초로 늘려 서버 세션 안정화 유도
         }
-        catch (Exception e)
-        {
-            Debug.LogError($"Firebase Query Error: {e.Message}");
-        }
+
         return scores;
     }
 }

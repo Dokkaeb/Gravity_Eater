@@ -24,7 +24,7 @@ public class LobbyManager : MonoBehaviourPunCallbacks
         }
         else
         {
-            _statusText.text = "서버연결대기중";
+            _statusText.text = "서버연결대기중 이름 입력후 start버튼 눌러주세요";
             _joinButton.interactable = true;
         }
     }
