@@ -1,10 +1,9 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using Photon.Pun;
-using System.Threading.Tasks;
 
 
-public class GameExitManager : MonoBehaviour
+public class GameExitManager : MonoBehaviourPunCallbacks
 {
     public static GameExitManager Instance { get; private set; }
 
@@ -42,24 +41,32 @@ public class GameExitManager : MonoBehaviour
         }
 
         //방나가기
-        Debug.Log("2. 포톤 방 나가기 요청...");
+        Debug.Log("방 나가기 요청...");
         if (PhotonNetwork.InRoom)
         {
             PhotonNetwork.LeaveRoom();
-
-            //방 나갈때까지 대기, 3초정도만
-            float timeout = 3f;
-            while (PhotonNetwork.InRoom && timeout > 0)
-            {
-                timeout -= Time.deltaTime;
-                await Task.Yield(); // 한 프레임 대기
-            }
         }
+        else
+        {
+            MoveToLobby();
+        }
+    }
 
-        Debug.Log("3. 메인 씬으로 이동...");
+    public override void OnLeftRoom()
+    {
+        Debug.Log("방 나가기 완료 콜백 수신 로비로 이동합니다");
+        MoveToLobby();
+    }
+    private void MoveToLobby()
+    {
         _isExiting = false;
+
+        // 메시지 큐 정지 (동기화 에러 방지용)
         PhotonNetwork.IsMessageQueueRunning = false;
+
         SceneManager.LoadScene("Loby");
+
+        // 씬 로드 후 다시 켜줌
         PhotonNetwork.IsMessageQueueRunning = true;
     }
 

@@ -26,10 +26,11 @@ public class SoundManager : MonoBehaviour
     }
     private void Start()
     {
-        float bgmVol = PlayerPrefs.GetFloat(BGM_VOLUME_KEY, 0.5f);
-        float sfxVol = PlayerPrefs.GetFloat(SFX_VOLUME_KEY, 0.5f);
+        float bgmVol = PlayerPrefs.GetFloat(BGM_VOLUME_KEY, 0.3f);
+        float sfxVol = PlayerPrefs.GetFloat(SFX_VOLUME_KEY, 0.3f);
 
-
+        _bgmSource.volume = bgmVol;
+        _sfxSource.volume = sfxVol;
 
         PlayRandomBGM();
     }
