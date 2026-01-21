@@ -135,13 +135,29 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
         _currentState = newState;
         Debug.Log("현재 상태: " + newState);
 
-        if(_currentState == PlayerState.Dash)
+        bool isDashing = (_currentState == PlayerState.Dash);
+        photonView.RPC(nameof(RPC_UpdateDashEffect), RpcTarget.All, isDashing);
+
+        if (photonView.IsMine)
         {
-            _dashTrail.SetActive(true);
+            if (isDashing)
+            {
+                // 나에게만 즉시 들리는 사운드
+                SoundManager.Instance?.PlaySFX("sfx_Dash_Start");
+            }
+            else
+            {
+                SoundManager.Instance?.PlaySFX("sfx_Dash_End");
+            }
         }
-        else
+
+    }
+    [PunRPC]
+    private void RPC_UpdateDashEffect(bool isDashing)
+    {
+        if(_dashTrail != null)
         {
-            _dashTrail.SetActive(false);
+            _dashTrail.SetActive(isDashing);
         }
     }
 

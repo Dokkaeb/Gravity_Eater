@@ -38,3 +38,7 @@ MonoBehaviour:
     clip: {fileID: 8300000, guid: 504b67eb3d696ab46bfc589cf1f81246, type: 3}
   - name: sfx_Hover
     clip: {fileID: 8300000, guid: 190ab10ba63a93544a88549c8ca4c336, type: 3}
+  - name: sfx_Dash_Start
+    clip: {fileID: 8300000, guid: b0d4261a4b0cd0640987228249f4c8f5, type: 3}
+  - name: sfx_Dash_End
+    clip: {fileID: 8300000, guid: 8269ea8e8d906fc47841201334da233c, type: 3}
