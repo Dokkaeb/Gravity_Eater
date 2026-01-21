@@ -30,6 +30,8 @@ public class GameExitManager : MonoBehaviour
         if (_isExiting) return;
         _isExiting = true;
 
+        PhotonNetwork.AutomaticallySyncScene = false;
+
         Debug.Log("게임종료중 점수 저장함");
         if(FirebaseManager.Instance != null)
         {

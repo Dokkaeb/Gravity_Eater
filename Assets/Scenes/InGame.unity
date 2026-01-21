@@ -857,7 +857,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a52e9ff5f5386154095ba40c37cc5ec8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CamFollow
-  _smoothSpeed: 5
+  _smoothSpeed: 10
   _offset: {x: 0, y: 0, z: -10}
   _baseSize: 5
   _zoomSensitivity: 10

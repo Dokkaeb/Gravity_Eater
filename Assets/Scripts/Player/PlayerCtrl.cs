@@ -10,6 +10,7 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
     [SerializeField] PlayerState _currentState = PlayerState.Move;
     [SerializeField] float _moveSpeed = 5f;
     [SerializeField] float _rotateSpeed = 10f;
+    [SerializeField] float _acceleration = 10f; //가속
 
     [Header("성장 세팅")]
     [SerializeField] float _currentScore = 0;
@@ -23,10 +24,13 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
 
     [Header("시각 효과")]
     [SerializeField] GameObject _dustEffect;
+    [SerializeField] Material _blackHole;
     [SerializeField] float _dustRotationSpeed = 20f;
     [SerializeField] float _dustTargetScore = 100f;
     [SerializeField] float _toStarTargetScore = 300f;
+    [SerializeField] float _toBHTargetScore = 500f;
     bool _isStar = false;
+    bool _isBlackHole = false;
 
     [Header("행성스킨 SO")]
     [SerializeField] PlanetSkins _planetSkins;
@@ -51,6 +55,12 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
     {
         if (photonView.IsMine)
         {
+            // 카메라 매니저에게 나를 타겟으로 설정하라고 알림
+            if (CamFollow.Instance != null)
+            {
+                CamFollow.Instance.SetTarget(this.transform);
+            }
+
             int myIndex = PlayerPrefs.GetInt("SelectedPlanetIndex", 0);
             photonView.RPC(nameof(RPC_ApplySkin), RpcTarget.AllBuffered, myIndex);
 
@@ -70,7 +80,7 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
         }
     }
 
-    private void Update()
+    private void FixedUpdate()
     {
         if (!photonView.IsMine || _currentState == PlayerState.Dead) return;
 
@@ -124,24 +134,27 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
         {
             float angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
             Quaternion targetRotation = Quaternion.AngleAxis(angle - 90f, Vector3.forward);
-            transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * _rotateSpeed);
+
+            float currentRotateSpeed = _rotateSpeed / (transform.localScale.x * 0.5f);
+
+            transform.rotation = Quaternion.RotateTowards(
+                transform.rotation,
+                targetRotation,
+                currentRotateSpeed * 10f * Time.deltaTime
+                );
         }
     }
 
     //이동
     private void HandleMovement(float speed)
     {
-        float distance = Vector2.Distance(transform.position, _mousePos);
+        Vector2 targetVelocity = transform.up * (speed * SlowMultiplier);
 
-        //마우스가 플레이어에 가까우면 멈춤
-        if(distance > 0.1f)
-        {
-            _rb.linearVelocity = transform.up * (speed * SlowMultiplier);
-        }
-        else
-        {
-            _rb.linearVelocity = Vector2.zero;
-        }
+        _rb.linearVelocity = Vector2.MoveTowards(
+        _rb.linearVelocity,
+        targetVelocity,
+        _acceleration * Time.fixedDeltaTime
+    );
     }
     //대시
     private void HandleDash()
@@ -259,6 +272,13 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
                 ChangeToStar();
             }
         }
+        if(_blackHole != null && !_isBlackHole)
+        {
+            if(_currentScore >= _toBHTargetScore)
+            {
+                ChangeToBlackHole();
+            }
+        }
     }
 
     private void ChangeToStar()
@@ -275,6 +295,20 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
         if (_spr != null && _starSkins != null && index < _starSkins.sprites.Length)
         {
             _spr.sprite = _starSkins.sprites[index];
+        }
+    }
+
+    private void ChangeToBlackHole()
+    {
+        _isBlackHole = true;
+        photonView.RPC(nameof(RPC_ApplyBlackHole),RpcTarget.AllBuffered);
+    }
+    [PunRPC]
+    private void RPC_ApplyBlackHole()
+    {
+        if(_spr != null && _blackHole != null)
+        {
+            _spr.material = _blackHole;
         }
     }
 }
