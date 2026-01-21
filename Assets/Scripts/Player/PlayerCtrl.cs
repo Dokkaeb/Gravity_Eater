@@ -21,6 +21,7 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
     [Header("대시 세팅")]
     [SerializeField] float _dashMultiplier = 2.0f;
     [SerializeField] float _dashCostPerSecond = 2.0f;
+    [SerializeField] GameObject _dashTrail;
 
     [Header("시각 효과")]
     [SerializeField] GameObject _dustEffect;
@@ -44,11 +45,18 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
     Vector2 _mousePos;
     Rigidbody2D _rb;
     SpriteRenderer _spr;
+    ParticleSystem _dashTrailParticle;
+    Texture2D _currentSkinTex;
 
     private void Awake()
     {
         _rb = GetComponent<Rigidbody2D>();
         _spr = GetComponent<SpriteRenderer>();
+
+        if (_dashTrail != null)
+        {
+            _dashTrailParticle = _dashTrail.GetComponent<ParticleSystem>();
+        }
     }
 
     private void Start()
@@ -69,6 +77,7 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
                 UIManager.Instance.ConnectScore(_currentScore);
             }
         }
+
     }
 
     [PunRPC]
@@ -77,6 +86,7 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
         if (_spr != null && _planetSkins != null && index < _planetSkins.sprites.Length)
         {
             _spr.sprite = _planetSkins.sprites[index];
+            _currentSkinTex = _spr.sprite.texture;
         }
     }
 
@@ -124,6 +134,15 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
     {
         _currentState = newState;
         Debug.Log("현재 상태: " + newState);
+
+        if(_currentState == PlayerState.Dash)
+        {
+            _dashTrail.SetActive(true);
+        }
+        else
+        {
+            _dashTrail.SetActive(false);
+        }
     }
 
     //마우스 방향 바라보기
@@ -195,6 +214,15 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
         float calculatedScale = _minScale + (_currentScore * _scaleMultiplier);
         float finalScale = Mathf.Clamp(calculatedScale, _minScale, _maxScale);
         transform.localScale = new Vector3(finalScale, finalScale, 1f);
+
+        if (_dashTrailParticle != null)
+        {
+            var shape = _dashTrailParticle.shape;
+            var main = _dashTrailParticle.main;
+
+            shape.radius = (finalScale * 2.5f) + 1.3f;
+            main.startSize = finalScale * 2.5f;
+        }
 
     }
 
@@ -308,7 +336,9 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
     {
         if(_spr != null && _blackHole != null)
         {
-            _spr.material = _blackHole;
+            _spr.material = new Material(_blackHole);
+
+            _spr.material.SetTexture("_Noise_Texture", _currentSkinTex);
         }
     }
 }
