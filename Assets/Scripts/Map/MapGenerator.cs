@@ -158,30 +158,40 @@ public class MapGenerator : MonoBehaviourPunCallbacks
     //전리품 생성
     public void RequestSpawnLoot(Vector3 pos,float lootScore)
     {
+        //마스터한테 요청
+        photonView.RPC(nameof(RPC_RequestLootSpawnByMaster), RpcTarget.MasterClient, pos, lootScore);
+    }
+    [PunRPC]
+    private void RPC_RequestLootSpawnByMaster(Vector3 pos, float lootScore)
+    {
+        // 여기는 마스터 클라이언트의 컴퓨터에서만 실행됨
         if (!PhotonNetwork.IsMasterClient) return;
 
-        // 점수가 100점이면 1점짜리 100개가 아니라, 10점짜리 10개로 변환 (개수 90% 절감)
+        // 1점미만 생성안함
+        if (lootScore < 1f) return;
+        //10점단위로 점수 쪼개기
         int valuePerLoot = 10;
-        int totalCount = Mathf.CeilToInt(lootScore / valuePerLoot);
-        if (totalCount <= 0) return;
+        int count = Mathf.Max(1, Mathf.FloorToInt(lootScore / valuePerLoot));
 
+        // 기존의 생성 로직 진행...
         int sentCount = 0;
-        while (sentCount < totalCount)
+        while (sentCount < count)
         {
-            int batchCount = Mathf.Min(50, totalCount - sentCount); // 한 번에 최대 50개씩
+            int batchCount = Mathf.Min(50, count - sentCount);
             int[] ids = new int[batchCount];
             Vector3[] positions = new Vector3[batchCount];
 
             for (int i = 0; i < batchCount; i++)
             {
                 ids[i] = _lootIdCounter++;
-                positions[i] = pos + (Vector3)Random.insideUnitCircle * (2f + (totalCount * 0.05f));
+                // 사방으로 퍼지는 범위 조절 (갯수가 많을수록 더 넓게)
+                float spreadRange = 2f + (count * 0.05f);
+                positions[i] = pos + (Vector3)Random.insideUnitCircle * spreadRange;
             }
 
             photonView.RPC(nameof(RPC_SpawnLootBatch), RpcTarget.All, ids, positions);
             sentCount += batchCount;
         }
-
     }
 
     [PunRPC]
