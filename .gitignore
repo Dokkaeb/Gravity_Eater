@@ -80,6 +80,9 @@ crashlytics-build.properties
 /Assets/Firebase/*
 !/Assets/Firebase/*.meta
 
+/Assets/Plugins/*
+!/Assets/Plugins/*.meta
+
 /Assets/StreamingAssets/*
 !/Assets/StreamingAssets/*.meta
 
