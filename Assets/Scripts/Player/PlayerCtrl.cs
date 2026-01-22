@@ -4,6 +4,7 @@ using Photon.Pun;
 
 public class PlayerCtrl : MonoBehaviourPun, IPunObservable
 {
+    public static PlayerCtrl LocalPlayer;
     public enum PlayerState { Move, Dash ,Dead }
 
     [Header("기본세팅")]
@@ -63,6 +64,7 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
     {
         if (photonView.IsMine)
         {
+            LocalPlayer = this;
             // 카메라 매니저에게 나를 타겟으로 설정하라고 알림
             if (CamFollow.Instance != null)
             {
@@ -78,6 +80,13 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
             }
         }
 
+    }
+    private void OnDestroy()
+    {
+        if (photonView.IsMine && LocalPlayer == this)
+        {
+            LocalPlayer = null;
+        }
     }
 
     [PunRPC]
