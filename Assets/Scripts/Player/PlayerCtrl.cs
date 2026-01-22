@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 using Photon.Pun;
+using System.Collections;
 
 public class PlayerCtrl : MonoBehaviourPun, IPunObservable
 {
@@ -12,6 +13,7 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
     [SerializeField] float _moveSpeed = 5f;
     [SerializeField] float _rotateSpeed = 10f;
     [SerializeField] float _acceleration = 10f; //가속
+    bool _isInvincible = false;
 
     [Header("성장 세팅")]
     [SerializeField] float _currentScore = 0;
@@ -42,6 +44,7 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
     float _slowMultiplier = 1f;
 
     public float SlowMultiplier => _slowMultiplier;
+    public bool IsInvincible => _isInvincible;
 
     Vector2 _mousePos;
     Rigidbody2D _rb;
@@ -65,6 +68,7 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
         if (photonView.IsMine)
         {
             LocalPlayer = this;
+            StartCoroutine(Co_SpawnProtection()); // 스폰 보호
             // 카메라 매니저에게 나를 타겟으로 설정하라고 알림
             if (CamFollow.Instance != null)
             {
@@ -80,6 +84,32 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
             }
         }
 
+    }
+    
+    IEnumerator Co_SpawnProtection()
+    {
+        _isInvincible = true;
+        Debug.Log("스폰보호시작 2초");
+
+        //반투명
+        if(_spr != null)
+        {
+            Color c = _spr.color;
+            c.a = 0.5f;
+            _spr.color = c;
+        }
+
+        yield return new WaitForSeconds(2f); //2초대기
+
+        _isInvincible = false;
+
+        if (_spr != null)
+        {
+            Color c = _spr.color;
+            c.a = 1f;
+            _spr.color = c;
+        }
+        Debug.Log("보호끝");
     }
     private void OnDestroy()
     {
@@ -278,9 +308,17 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
         }
     }
 
-    public void OnHeadHitOhterPlayer()
+    public void OnHeadHitOhterPlayer(PlayerCtrl otherBody)
     {
         if(!photonView.IsMine || _currentState == PlayerState.Dead) return;
+
+        if (_isInvincible) return; //무적이면 안죽게
+
+        if (otherBody != null && otherBody.IsInvincible)
+        {
+            Debug.Log("상대방이 스폰 보호 중이라 충돌 무시");
+            return;
+        }
 
         Debug.Log("머리가 상대 몸통에 닿았습니다");
         OnDeath();

@@ -19,7 +19,17 @@ public class HeadDetector : MonoBehaviour
             PhotonView targetPV = collision.GetComponent<PhotonView>();
             if (targetPV != null && !targetPV.IsMine)
             {
-                _player.OnHeadHitOhterPlayer();
+                PlayerCtrl otherPlayer = collision.GetComponent<PlayerCtrl>();
+
+                if (otherPlayer != null)
+                {
+                    if (otherPlayer.IsInvincible)
+                    {
+                        Debug.Log("적이 스폰보호상태임");
+                        return;
+                    }
+                }
+                _player.OnHeadHitOhterPlayer(otherPlayer);
             }
         }
     }
