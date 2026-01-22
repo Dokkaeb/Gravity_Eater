@@ -9,7 +9,8 @@ public class TitlePolishing : MonoBehaviour
     {
         transform.DOLocalMoveY(transform.localPosition.y + _moveRange, _moveTime)
             .SetEase(Ease.InOutSine)
-            .SetLoops(-1, LoopType.Yoyo);
+            .SetLoops(-1, LoopType.Yoyo)
+            .SetLink(gameObject);
 
     }
 }

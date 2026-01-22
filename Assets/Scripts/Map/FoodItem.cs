@@ -36,7 +36,7 @@ public class FoodItem : MonoBehaviour
 
     private void OnTriggerEnter2D(Collider2D other)
     {
-        if (other.CompareTag("Player"))
+        if (PhotonNetwork.InRoom && other.CompareTag("Player"))
         {
             PhotonView pv = other.GetComponent<PhotonView>();
 

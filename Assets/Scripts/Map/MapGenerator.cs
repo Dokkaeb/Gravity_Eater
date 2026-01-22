@@ -1,7 +1,8 @@
-using UnityEngine;
+using Photon.Pun;
+using Photon.Realtime;
 using System.Collections;
 using System.Collections.Generic;
-using Photon.Pun;
+using UnityEngine;
 
 public class MapGenerator : MonoBehaviourPunCallbacks
 {
@@ -75,6 +76,14 @@ public class MapGenerator : MonoBehaviourPunCallbacks
     //플레이어가 먹으면 호출
     public void RequestEatFood(int id,int viewID)
     {
+        if (!PhotonNetwork.IsConnected || !PhotonNetwork.InRoom)
+        {
+            return;
+        }
+        if (PhotonNetwork.NetworkClientState == ClientState.Leaving)
+        {
+            return;
+        }
         //AllBuffered를 써서 나중에 들어온 유저도 뭘먹었는지 알수있게
         photonView.RPC(nameof(RPC_ProcessEat), RpcTarget.AllBuffered, id,viewID);
     }
