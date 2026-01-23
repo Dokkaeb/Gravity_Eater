@@ -148,14 +148,6 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
         UpdateVisualEffects();
     }
 
-    public void OnPointerInput(InputAction.CallbackContext ctx)
-    {
-        if (!photonView.IsMine) return;
-        //마우스 스크린 좌표 받아오기
-        Vector2 screenPos = ctx.ReadValue<Vector2>();
-        _mousePos = Camera.main.ScreenToWorldPoint(screenPos);
-    }
-
     public void OnDashInput(InputAction.CallbackContext ctx)
     {
         if(!photonView.IsMine || _currentState == PlayerState.Dead) return;
@@ -203,20 +195,34 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
     //마우스 방향 바라보기
     private void HandleRotation()
     {
+        if (Mouse.current == null) return;
+
+        //마우스 위치 좌표 계산
+        Vector2 mouseScreenPos = Mouse.current.position.ReadValue();
+        _mousePos = Camera.main.ScreenToWorldPoint(mouseScreenPos);
+
+        //내위치에서 마우스쪽으로 방향벡터 계산
         Vector2 dir = (_mousePos - (Vector2)transform.position).normalized;
-        if(dir != Vector2.zero)
+
+        //기존에 있던 마우스 위치에 도달해도 빙빙안돌게하기(0.5f 이내면 회전 업데이트 안 함)
+        if (dir == Vector2.zero || Vector2.Distance(_mousePos, transform.position) < 0.5f)
         {
-            float angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
-            Quaternion targetRotation = Quaternion.AngleAxis(angle - 90f, Vector3.forward);
-
-            float currentRotateSpeed = _rotateSpeed / (transform.localScale.x * 0.5f);
-
-            transform.rotation = Quaternion.RotateTowards(
-                transform.rotation,
-                targetRotation,
-                currentRotateSpeed * 10f * Time.deltaTime
-                );
+            return;
         }
+
+        //회전계산
+        float angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
+        Quaternion targetRotation = Quaternion.AngleAxis(angle - 90f, Vector3.forward);
+
+        //덩치에 따른 회전속도 보정
+        float currentRotateSpeed = _rotateSpeed / (transform.localScale.x * 0.5f);
+
+        transform.rotation = Quaternion.RotateTowards(
+            transform.rotation,
+            targetRotation,
+            currentRotateSpeed * 10f * Time.fixedDeltaTime
+            );
+       
     }
 
     //이동

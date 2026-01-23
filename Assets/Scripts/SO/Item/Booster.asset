@@ -1,0 +1,20 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4a92c1e3f9a28c14a97df93647b07a0e, type: 3}
+  m_Name: Booster
+  m_EditorClassIdentifier: Assembly-CSharp::ItemData
+  itemName: Booster
+  itemType: 2
+  itemSprite: {fileID: 21300000, guid: 58b37a3431953784595e32a7cc6b6cab, type: 3}
+  duration: 5
+  amount: 0
+  itemPrefab: {fileID: 7581704896122574699, guid: ca39de5563cf99d45b5abf7dcd2eec48, type: 3}
