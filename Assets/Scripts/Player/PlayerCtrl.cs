@@ -461,6 +461,7 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
     {
         _isShield = true;
         if (_shieldVisual != null) _shieldVisual.SetActive(true);
+        SoundManager.Instance.PlaySFX("sfx_Shield_Start");
 
         yield return new WaitForSeconds(duration * 0.8f);
 
@@ -483,6 +484,7 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
         {
             _isShield = false;
             if (_shieldVisual != null) _shieldVisual.SetActive(false);
+            SoundManager.Instance.PlaySFX("sfx_Shield_Stop");
         }
     }
     IEnumerator Co_MagnetEffect(float duration, float range)
@@ -491,7 +493,7 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
         if (_magnetVisual != null) _magnetVisual.SetActive(true);
 
         _magnetRange = range;
-
+        SoundManager.Instance.PlayLoopSFX("sfx_Magnet");
         yield return new WaitForSeconds(duration * 0.8f);
 
         float timeLeft = duration * 0.2f;
@@ -513,10 +515,12 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
         {
             _isMagnetActive = false;
             if (_magnetVisual != null) _magnetVisual.SetActive(false);
+            SoundManager.Instance.StopLoopSFX();
         }
     }
     IEnumerator Co_BoostEffect(float duration, float speedAmount)
     {
+        SoundManager.Instance.PlaySFX("sfx_Booster");
         _boosterSpeed = speedAmount;
         yield return new WaitForSeconds(duration);
         _boosterSpeed = 0f;

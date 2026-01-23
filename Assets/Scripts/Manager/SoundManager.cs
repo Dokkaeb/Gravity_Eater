@@ -7,6 +7,7 @@ public class SoundManager : MonoBehaviour
     [SerializeField] SoundData _soundData;
     [SerializeField] AudioSource _bgmSource;
     [SerializeField] AudioSource _sfxSource;
+    [SerializeField] AudioSource _loopSfxSource;
 
     //볼륨 설정 저장할 키값
     const string BGM_VOLUME_KEY = "BGM_Volume";
@@ -62,6 +63,22 @@ public class SoundManager : MonoBehaviour
         {
             _sfxSource.PlayOneShot(clip);
         }
+    }
+    public void PlayLoopSFX(string sfxName)
+    {
+        AudioClip clip = _soundData.GetSFX(sfxName);
+        if (clip != null && _loopSfxSource.clip != clip)
+        {
+            _loopSfxSource.clip = clip;
+            _loopSfxSource.loop = true;
+            _loopSfxSource.Play();
+        }
+    }
+
+    public void StopLoopSFX()
+    {
+        _loopSfxSource.Stop();
+        _loopSfxSource.clip = null;
     }
 
     public void SetBGMVolume(float volume)

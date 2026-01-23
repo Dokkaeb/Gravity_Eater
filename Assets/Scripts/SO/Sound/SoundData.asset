@@ -42,3 +42,11 @@ MonoBehaviour:
     clip: {fileID: 8300000, guid: b0d4261a4b0cd0640987228249f4c8f5, type: 3}
   - name: sfx_Dash_End
     clip: {fileID: 8300000, guid: 8269ea8e8d906fc47841201334da233c, type: 3}
+  - name: sfx_Booster
+    clip: {fileID: 8300000, guid: 071bc5d7d9c6e7c4abfa3fc899f8bbf5, type: 3}
+  - name: sfx_Shield_Start
+    clip: {fileID: 8300000, guid: 06a58a7eb882b6e4e923e3fe52cc61af, type: 3}
+  - name: sfx_Shield_Stop
+    clip: {fileID: 8300000, guid: a715fda2b83564640921a88cedf3aebd, type: 3}
+  - name: sfx_Magnet
+    clip: {fileID: 8300000, guid: c68213960cb2fe545b345eb1a8f1f7b4, type: 3}
