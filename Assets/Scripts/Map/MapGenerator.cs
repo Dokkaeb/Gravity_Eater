@@ -13,19 +13,28 @@ public class MapGenerator : MonoBehaviourPunCallbacks
     [Header("세팅")]
     [SerializeField] int _maxFoodOnMap = 1000; //맵에 유지할 먹이갯수
     [SerializeField] float _mapSize = 100f;
+    [SerializeField] int _maxItemOnMap = 10;
+    [SerializeField] int initialItemCount = 5;
 
     [Header("프리팹 설정")]
     [SerializeField] GameObject _foodPrefab;
     [SerializeField] GameObject _nebulaPrefab;
+    [SerializeField] GameObject _itemPrefab;
 
     [Header("데이터")]
     [SerializeField] FoodData[] _foodTypes;
     [SerializeField] NebulaData[] _nebulaTypes;
-    [SerializeField] float _respawnTime = 10f;  //먹이재생성시간
+    [SerializeField] ItemData[] _itemTypes;
+    [SerializeField] float _foodRespawnTime = 10f;  
     [SerializeField] float _nebulaSpawnInterval = 15f;
+    [SerializeField] float _itemSpawnInterval = 10f;
+
 
     //먹이,전리품 활성화 추적용 딕셔너리
     private Dictionary<int,GameObject> _activeFoods = new Dictionary<int,GameObject>();
+
+    //아이템 추적용 리스트
+    private List<GameObject> _activeItems = new List<GameObject>();
 
     //전리품 ID는 먹이랑 안곂치게 큰숫자부터 시작
     private int _lootIdCounter = 100000;
@@ -50,7 +59,12 @@ public class MapGenerator : MonoBehaviourPunCallbacks
 
         if (PhotonNetwork.IsMasterClient)
         {
+            for (int i = 0; i < initialItemCount; i++)
+            {
+                SpawnRandomItem(); // 랜덤 위치 아이템 생성 함수 호출
+            }
             StartCoroutine(Co_NebulaSpawner());
+            StartCoroutine(Co_ItemSpawner());
         }
     }
     #endregion
@@ -140,7 +154,7 @@ public class MapGenerator : MonoBehaviourPunCallbacks
     //먹이재생성 코루틴
     IEnumerator Co_RespawnFood(int id, Vector3 pos)
     {
-        yield return new WaitForSeconds(_respawnTime);
+        yield return new WaitForSeconds(_foodRespawnTime);
 
         photonView.RPC(nameof(RPC_SpawnSpecificFood), RpcTarget.All, id, pos);
     }
@@ -239,6 +253,7 @@ public class MapGenerator : MonoBehaviourPunCallbacks
     #endregion
 
     #region 함정(네뷸라) 생성
+
     IEnumerator Co_NebulaSpawner()
     {
         yield return new WaitForSeconds(5f);
@@ -247,12 +262,19 @@ public class MapGenerator : MonoBehaviourPunCallbacks
         {
             yield return new WaitForSeconds(_nebulaSpawnInterval);
 
-            float x = Random.Range(-_mapSize, _mapSize);
-            float y = Random.Range(-_mapSize, _mapSize);
-            Vector3 spawnPos = new Vector3(x, y, 0);
-            int dataIdx = Random.Range(0, _nebulaTypes.Length);
+            int spawnCount = 5;
 
-            photonView.RPC(nameof(RPC_SpawnNebula), RpcTarget.All, spawnPos, dataIdx);
+            for (int i = 0; i < spawnCount; i++)
+            {
+                float x = Random.Range(-_mapSize, _mapSize);
+                float y = Random.Range(-_mapSize, _mapSize);
+                Vector3 spawnPos = new Vector3(x, y, 0);
+
+                int dataIdx = Random.Range(0, _nebulaTypes.Length);
+
+                // 마스터가 모든 클라이언트에게 개별적으로 생성 명령 전송
+                photonView.RPC(nameof(RPC_SpawnNebula), RpcTarget.All, spawnPos, dataIdx);
+            }
         }
     }
 
@@ -265,5 +287,96 @@ public class MapGenerator : MonoBehaviourPunCallbacks
 
         nebulaObj.GetComponent<Nebula>().Setup(_nebulaTypes[dataIdx]);
     }
+    #endregion
+
+    #region 아이템 생성, 파괴
+
+    private void SpawnRandomItem()
+    {
+        float x = Random.Range(-_mapSize, _mapSize);
+        float y = Random.Range(-_mapSize, _mapSize);
+        Vector3 spawnPos = new Vector3(x, y, 0);
+
+        int dataIdx = Random.Range(0, _itemTypes.Length);
+
+        // 모든 클라이언트에게 생성 명령
+        photonView.RPC(nameof(RPC_SpawnItem), RpcTarget.All, spawnPos, dataIdx);
+    }
+
+    IEnumerator Co_ItemSpawner()
+    {
+        yield return new WaitForSeconds(_itemSpawnInterval);
+
+        while (true)
+        {
+            // 현재 맵에 깔린 아이템 개수 체크 (리스트에서 비활성화된 것은 제거)
+            _activeItems.RemoveAll(item => item == null || !item.activeInHierarchy);
+
+            // 최대 개수보다 적을 때만 생성
+            if (_activeItems.Count < _maxItemOnMap)
+            {
+                int spawnBatch = Mathf.Min(3, _maxItemOnMap - _activeItems.Count);
+
+                for (int i = 0; i < spawnBatch; i++)
+                {
+                    SpawnRandomItem();
+                }
+            }
+
+            //다음 스폰까지 대기
+            yield return new WaitForSeconds(_itemSpawnInterval);
+        }
+    }
+
+    [PunRPC]
+    private void RPC_SpawnItem(Vector3 pos,int dataIdx)
+    {
+        GameObject itemObj = PoolManager.Instance.Get(_itemPrefab);
+        itemObj.transform.position = pos;
+        itemObj.SetActive(true);
+
+        itemObj.GetComponent<ItemObject>().Setup(_itemTypes[dataIdx]);
+
+        // 생성된 아이템을 리스트에 추가하여 관리
+        if (!_activeItems.Contains(itemObj))
+        {
+            _activeItems.Add(itemObj);
+        }
+    }
+
+    public void RequestDestroyItem(Vector3 pos)
+    {
+        photonView.RPC(nameof(RPC_MasterDestroyItem), RpcTarget.MasterClient, pos);
+    }
+    [PunRPC]
+    private void RPC_MasterDestroyItem(Vector3 pos)
+    {
+        // 마스터가 모두에게 삭제 명령
+        photonView.RPC(nameof(RPC_FinalizeDestroyItem), RpcTarget.All, pos);
+    }
+    [PunRPC]
+    private void RPC_FinalizeDestroyItem(Vector3 pos)
+    {
+        // 해당 위치에 있는 아이템을 찾아서 삭제 (또는 풀에 반환)
+        // _activeItems 리스트에서 가장 가까운 아이템을 찾습니다.
+        GameObject targetItem = null;
+        float minDist = 0.5f; // 오차 범위
+
+        foreach (var item in _activeItems)
+        {
+            if (item != null && Vector3.Distance(item.transform.position, pos) < minDist)
+            {
+                targetItem = item;
+                break;
+            }
+        }
+
+        if (targetItem != null)
+        {
+            _activeItems.Remove(targetItem);
+            PoolManager.Instance.Release(targetItem);
+        }
+    }
+
     #endregion
 }

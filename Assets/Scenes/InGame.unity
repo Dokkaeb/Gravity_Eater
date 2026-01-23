@@ -6607,8 +6607,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::MapGenerator
   _maxFoodOnMap: 1000
   _mapSize: 100
+  _maxItemOnMap: 10
+  initialItemCount: 5
   _foodPrefab: {fileID: 1645308259594785070, guid: b720eb2b401834445bc4963edeeca609, type: 3}
   _nebulaPrefab: {fileID: 9148203863873650618, guid: 70a9929de53f3ff49af42cfd529fecb5, type: 3}
+  _itemPrefab: {fileID: 4461430849121431518, guid: b23d2764a814c9a4b94f06aedaaab25f, type: 3}
   _foodTypes:
   - {fileID: 11400000, guid: 3b75b6a0680d7564c84bc7f16d6fed72, type: 2}
   - {fileID: 11400000, guid: aa92960a0733e55489d12ddeb75063a3, type: 2}
@@ -6616,8 +6619,13 @@ MonoBehaviour:
   _nebulaTypes:
   - {fileID: 11400000, guid: 573405493c256494d99fdf5c4a85fd46, type: 2}
   - {fileID: 11400000, guid: 72c3a5d626e450b4681369999ddeb493, type: 2}
-  _respawnTime: 10
+  _itemTypes:
+  - {fileID: 11400000, guid: 541dd0dd26e78b549af09765a9c2082d, type: 2}
+  - {fileID: 11400000, guid: 3ab298b4a0c55054fabb762d165d1a36, type: 2}
+  - {fileID: 11400000, guid: cfe7dff5bff910247872c337b9a9c932, type: 2}
+  _foodRespawnTime: 10
   _nebulaSpawnInterval: 15
+  _itemSpawnInterval: 10
 --- !u!4 &737486561
 Transform:
   m_ObjectHideFlags: 0

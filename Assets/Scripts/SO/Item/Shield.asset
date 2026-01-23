@@ -15,6 +15,5 @@ MonoBehaviour:
   itemName: Shield
   itemType: 0
   itemSprite: {fileID: 21300000, guid: 1932640e6cf290044a4ee6967192234d, type: 3}
-  duration: 0
+  duration: 10
   amount: 0
-  itemPrefab: {fileID: 8058211182666186007, guid: 7c1045bc6c3d3844ea7f0c06fc525518, type: 3}

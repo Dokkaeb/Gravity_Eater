@@ -33,7 +33,28 @@ public class FoodItem : MonoBehaviour
             transform.localScale = Vector3.one;
         }
     }
+    private void Update()
+    {
+        if(PlayerCtrl.LocalPlayer != null && PlayerCtrl.LocalPlayer.IsMagnetActive)
+        {
+            float distance = Vector2.Distance(transform.position, PlayerCtrl.LocalPlayer.transform.position);
 
+            // 플레이어의 반지름(스케일의 절반)을 고려하여 범위를 계산
+            float playerRadius = PlayerCtrl.LocalPlayer.transform.localScale.x * 0.5f;
+            float effectiveRange = PlayerCtrl.LocalPlayer.MagnetRange + playerRadius;
+
+            if (distance <= effectiveRange)
+            {
+                float pullSpeed = 15f + (PlayerCtrl.LocalPlayer.transform.localScale.x * 2f);
+
+                transform.position = Vector3.MoveTowards(
+                    transform.position,
+                    PlayerCtrl.LocalPlayer.transform.position,
+                    pullSpeed*Time.deltaTime
+                    );
+            }
+        }
+    }
     private void OnTriggerEnter2D(Collider2D other)
     {
         if (PhotonNetwork.InRoom && other.CompareTag("Player"))

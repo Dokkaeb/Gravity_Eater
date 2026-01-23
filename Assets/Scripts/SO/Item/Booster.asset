@@ -16,5 +16,4 @@ MonoBehaviour:
   itemType: 2
   itemSprite: {fileID: 21300000, guid: 58b37a3431953784595e32a7cc6b6cab, type: 3}
   duration: 5
-  amount: 0
-  itemPrefab: {fileID: 7581704896122574699, guid: ca39de5563cf99d45b5abf7dcd2eec48, type: 3}
+  amount: 5

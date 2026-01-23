@@ -43,8 +43,18 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
     [Header("슬로우 설정")]
     float _slowMultiplier = 1f;
 
+    [Header("아이템 설정")]
+    [SerializeField] GameObject _shieldVisual;
+    [SerializeField] GameObject _magnetVisual;
+    bool _isShield = false;
+    bool _isMagnetActive = false;
+    float _magnetRange = 0f;
+    float _boosterSpeed = 0f;
+
     public float SlowMultiplier => _slowMultiplier;
+    public float MagnetRange => _magnetRange * (transform.localScale.x * 0.8f);
     public bool IsInvincible => _isInvincible;
+    public bool IsMagnetActive => _isMagnetActive;
 
     Vector2 _mousePos;
     Rigidbody2D _rb;
@@ -68,7 +78,8 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
         if (photonView.IsMine)
         {
             LocalPlayer = this;
-            StartCoroutine(Co_SpawnProtection()); // 스폰 보호
+            StartCoroutine(Co_SpawnProtection(2f)); // 스폰 보호
+
             // 카메라 매니저에게 나를 타겟으로 설정하라고 알림
             if (CamFollow.Instance != null)
             {
@@ -86,10 +97,10 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
 
     }
     
-    IEnumerator Co_SpawnProtection()
+    IEnumerator Co_SpawnProtection(float duration)
     {
         _isInvincible = true;
-        Debug.Log("스폰보호시작 2초");
+        Debug.Log("잠깐 무적");
 
         //반투명
         if(_spr != null)
@@ -99,7 +110,7 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
             _spr.color = c;
         }
 
-        yield return new WaitForSeconds(2f); //2초대기
+        yield return new WaitForSeconds(duration);
 
         _isInvincible = false;
 
@@ -228,13 +239,14 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
     //이동
     private void HandleMovement(float speed)
     {
-        Vector2 targetVelocity = transform.up * (speed * SlowMultiplier);
+        float finalSpeed = (speed + _boosterSpeed) * SlowMultiplier;
+        Vector2 targetVelocity = transform.up * finalSpeed;
 
         _rb.linearVelocity = Vector2.MoveTowards(
         _rb.linearVelocity,
         targetVelocity,
         _acceleration * Time.fixedDeltaTime
-    );
+        );
     }
     //대시
     private void HandleDash()
@@ -332,6 +344,17 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
 
     private void OnDeath()
     {
+        // 실드가 있으면 사망 절차를 밟지 않고 실드만 파괴
+        if (_isShield)
+        {
+            _isShield = false;
+            StopCoroutine(nameof(Co_ShieldEffect));
+            Debug.Log("실드 방어로 생존");
+            if (_shieldVisual != null) _shieldVisual.SetActive(false);
+            StartCoroutine(Co_SpawnProtection(0.5f)); //잠깐 무적주기
+            return;
+        }
+
         _currentState = PlayerState.Dead;
         _rb.linearVelocity = Vector2.zero;
 
@@ -409,5 +432,93 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
 
             _spr.material.SetTexture("_Noise_Texture", _currentSkinTex);
         }
+    }
+
+    public void ApplyItemEffect(ItemData data)
+    {
+        if (data == null) return;
+
+        Debug.Log($"아이템 획득 : {data.itemName}");
+
+        switch (data.itemType)
+        {
+            case ItemType.Shield:
+                StopCoroutine(nameof(Co_ShieldEffect));
+                StartCoroutine(Co_ShieldEffect(data.duration));
+                break;
+            case ItemType.Magnet:
+                StopCoroutine(nameof(Co_MagnetEffect));
+                StartCoroutine(Co_MagnetEffect(data.duration, data.amount));
+                break;
+
+            case ItemType.Boost:
+                StopCoroutine(nameof(Co_BoostEffect));
+                StartCoroutine(Co_BoostEffect(data.duration, data.amount));
+                break;
+        }
+    }
+    IEnumerator Co_ShieldEffect(float duration)
+    {
+        _isShield = true;
+        if (_shieldVisual != null) _shieldVisual.SetActive(true);
+
+        yield return new WaitForSeconds(duration * 0.8f);
+
+        float timeLeft = duration * 0.2f;
+        float blinkInterval = 0.1f; // 깜빡임 속도
+
+        while (timeLeft > 0)
+        {
+            if (_shieldVisual != null)
+            {
+                // 실드 비주얼의 활성화 상태를 반전시켜 깜빡이게 함
+                _shieldVisual.SetActive(!_shieldVisual.activeSelf);
+            }
+
+            yield return new WaitForSeconds(blinkInterval);
+            timeLeft -= blinkInterval;
+        }
+
+        if (_isShield)
+        {
+            _isShield = false;
+            if (_shieldVisual != null) _shieldVisual.SetActive(false);
+        }
+    }
+    IEnumerator Co_MagnetEffect(float duration, float range)
+    {
+        _isMagnetActive = true;
+        if (_magnetVisual != null) _magnetVisual.SetActive(true);
+
+        _magnetRange = range;
+
+        yield return new WaitForSeconds(duration * 0.8f);
+
+        float timeLeft = duration * 0.2f;
+        float blinkInterval = 0.1f; // 깜빡임 속도
+
+        while (timeLeft > 0)
+        {
+            if (_magnetVisual != null)
+            {
+                // 실드 비주얼의 활성화 상태를 반전시켜 깜빡이게 함
+                _magnetVisual.SetActive(!_magnetVisual.activeSelf);
+            }
+
+            yield return new WaitForSeconds(blinkInterval);
+            timeLeft -= blinkInterval;
+        }
+
+        if (_isMagnetActive)
+        {
+            _isMagnetActive = false;
+            if (_magnetVisual != null) _magnetVisual.SetActive(false);
+        }
+    }
+    IEnumerator Co_BoostEffect(float duration, float speedAmount)
+    {
+        _boosterSpeed = speedAmount;
+        yield return new WaitForSeconds(duration);
+        _boosterSpeed = 0f;
     }
 }

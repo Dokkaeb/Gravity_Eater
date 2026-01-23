@@ -10,9 +10,6 @@ public class ItemData : ScriptableObject
     [Header("효과 설정")]
     public float duration;
     public float amount;
-
-    [Header("프리팹")]
-    public GameObject itemPrefab;
 }
 public enum ItemType
 {

@@ -7,6 +7,7 @@ public class Nebula : MonoBehaviour
     NebulaData _data;
     SpriteRenderer _spr;
     float _lifeTime;
+    float _currentRotateSpeed;
 
     private float _penaltyTimer = 0f; // 페널티 타이머
     [SerializeField] float _penaltyTickRate = 0.5f; // 0.5초마다 점수 감소
@@ -22,10 +23,17 @@ public class Nebula : MonoBehaviour
         _data = data;
         _spr.sprite = data.sprite;
 
+        float speed = Random.Range(30f, 60f);
+        float direction = (Random.value > 0.5f) ? 1f : -1f;
+        _currentRotateSpeed = speed * direction;
+
         _lifeTime = Random.Range(data.minDuration, data.maxDuration);
         StartCoroutine(NebulaLifeCycle());
     }
-
+    private void Update()
+    {
+        transform.Rotate(0, 0, _currentRotateSpeed * Time.deltaTime);
+    }
     private IEnumerator NebulaLifeCycle()
     {
         float t = 0;
@@ -90,7 +98,7 @@ public class Nebula : MonoBehaviour
         if (_data.type == NebulaType.Blue && _affectedMinePlayer != null)
         {
             // 영역을 벗어나면 슬로우 해제
-            if (collision.gameObject == _affectedMinePlayer.gameObject)
+            if (collision.GetComponent<PlayerCtrl>() == _affectedMinePlayer)
             {
                 _penaltyTimer = 0f;
                 ClearEffect();
