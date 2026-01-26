@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using Photon.Pun;
 using System.Collections;
+using DG.Tweening;
 
 public class PlayerCtrl : MonoBehaviourPun, IPunObservable
 {
@@ -12,29 +13,32 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
     [SerializeField] PlayerState _currentState = PlayerState.Move;
     [SerializeField] float _moveSpeed = 5f;
     [SerializeField] float _rotateSpeed = 10f;
-    [SerializeField] float _acceleration = 10f; //가속
+    [SerializeField] float _acceleration = 20f; //가속
     bool _isInvincible = false;
 
     [Header("성장 세팅")]
     [SerializeField] float _currentScore = 0;
-    [SerializeField] float _scaleMultiplier = 0.1f; //점수당 크기증가 비율
-    [SerializeField] float _minScale = 1.0f;
+    [SerializeField] float _scaleMultiplier = 0.01f; //점수당 크기증가 비율
+    [SerializeField] float _minScale = 0.3f;
     [SerializeField] float _maxScale = 2.5f;
 
     [Header("대시 세팅")]
     [SerializeField] float _dashMultiplier = 2.0f;
-    [SerializeField] float _dashCostPerSecond = 2.0f;
+    [SerializeField] float _dashCostPerSecond = 5.0f;
     [SerializeField] GameObject _dashTrail;
 
     [Header("시각 효과")]
-    [SerializeField] GameObject _dustEffect;
+    [SerializeField] GameObject _asteroidsEffect;
     [SerializeField] Material _blackHole;
-    [SerializeField] float _dustRotationSpeed = 20f;
-    [SerializeField] float _dustTargetScore = 100f;
+    [SerializeField] float _asteroidsRotationSpeed = 90f;
+    [SerializeField] float _asteroidsTargetScore = 100f;
     [SerializeField] float _toStarTargetScore = 300f;
     [SerializeField] float _toBHTargetScore = 500f;
+    bool _isAsteroids = false;
     bool _isStar = false;
     bool _isBlackHole = false;
+    Tween _scaleTween;
+    float _logicScale = 1f;
 
     [Header("행성스킨 SO")]
     [SerializeField] PlanetSkins _planetSkins;
@@ -50,9 +54,13 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
     bool _isMagnetActive = false;
     float _magnetRange = 0f;
     float _boosterSpeed = 0f;
+    Coroutine _shieldCoroutine;
+    Coroutine _magnetCoroutine;
+    Coroutine _boostCoroutine;
 
     public float SlowMultiplier => _slowMultiplier;
     public float MagnetRange => _magnetRange * (transform.localScale.x * 0.8f);
+    public float LogicScale => _logicScale;
     public bool IsInvincible => _isInvincible;
     public bool IsMagnetActive => _isMagnetActive;
 
@@ -84,6 +92,7 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
             if (CamFollow.Instance != null)
             {
                 CamFollow.Instance.SetTarget(this.transform);
+                UpdateScale();
             }
 
             int myIndex = PlayerPrefs.GetInt("SelectedPlanetIndex", 0);
@@ -253,7 +262,10 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
     {
         if (_currentScore > 0)
         {
-            _currentScore -= _dashCostPerSecond * Time.deltaTime;
+
+            float scaleCost = _dashCostPerSecond * transform.localScale.x;
+
+            _currentScore -= scaleCost * Time.deltaTime;
 
             if (_currentScore < 0) _currentScore = 0;
 
@@ -273,9 +285,17 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
 
         _currentScore += scoreAmount;
 
+        if (_currentScore < 0) _currentScore = 0;
+
         UpdateScale();
-        
-        if(UIManager.Instance != null) //UI 갱신 보고
+
+        if (scoreAmount > 0)
+        {
+            _scaleTween?.Kill(true);
+            _scaleTween = transform.DOPunchScale(Vector3.one * 0.05f, 0.15f, 3, 0.5f);
+        }
+
+        if (UIManager.Instance != null) //UI 갱신 보고
         {
             UIManager.Instance.UpdatePlayerScore(_currentScore);
         }
@@ -286,8 +306,17 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
     {
         float calculatedScale = _minScale + (_currentScore * _scaleMultiplier);
         float finalScale = Mathf.Clamp(calculatedScale, _minScale, _maxScale);
+        _logicScale = finalScale; //카메라 줌용 수치저장
+        //크기설정
         transform.localScale = new Vector3(finalScale, finalScale, 1f);
 
+        // 소행성 벨트 크기 유지
+        if (_asteroidsEffect != null)
+        {
+            _asteroidsEffect.transform.localScale = Vector3.one * 3.3f;
+        }
+
+        //대시 이펙트 파티클 조절
         if (_dashTrailParticle != null)
         {
             var shape = _dashTrailParticle.shape;
@@ -347,19 +376,29 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
         // 실드가 있으면 사망 절차를 밟지 않고 실드만 파괴
         if (_isShield)
         {
+            if (_shieldCoroutine != null) StopCoroutine(_shieldCoroutine);
+            _shieldCoroutine = null;
+
             _isShield = false;
-            StopCoroutine(nameof(Co_ShieldEffect));
             Debug.Log("실드 방어로 생존");
             if (_shieldVisual != null) _shieldVisual.SetActive(false);
             StartCoroutine(Co_SpawnProtection(0.5f)); //잠깐 무적주기
             return;
         }
 
+        if(photonView.IsMine && CamFollow.Instance != null)
+        {
+            CamFollow.Instance.ShakeCam(1f, 2f);
+        }
+
         _currentState = PlayerState.Dead;
         _rb.linearVelocity = Vector2.zero;
 
-        if (UIManager.Instance != null)
+        ResetAllItemEffects();
+
+        if (UIManager.Instance != null && SoundManager.Instance != null)
         {
+            SoundManager.Instance.PlaySFX("sfx_Lose");
             UIManager.Instance.ShowDeathUI(_currentScore);
         }
 
@@ -375,17 +414,75 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
         gameObject.SetActive(false);
     }
 
+    private void ResetAllItemEffects()
+    {
+        // 코루틴 중단
+        if (_shieldCoroutine != null) StopCoroutine(_shieldCoroutine);
+        if (_magnetCoroutine != null) StopCoroutine(_magnetCoroutine);
+        if (_boostCoroutine != null) StopCoroutine(_boostCoroutine);
+
+        _shieldCoroutine = null;
+        _magnetCoroutine = null;
+        _boostCoroutine = null;
+
+        // 상태 변수 초기화
+        _isShield = false;
+        _isMagnetActive = false;
+        _magnetRange = 0f;
+        _boosterSpeed = 0f;
+
+        // 비주얼 초기화
+        if (_shieldVisual != null) _shieldVisual.SetActive(false);
+        if (_magnetVisual != null) _magnetVisual.SetActive(false);
+
+        // 사운드 중단 (자석 루프 사운드 등)
+        SoundManager.Instance?.StopLoopSFX();
+    }
+
     private void UpdateVisualEffects()
     {
-        if(_dustEffect != null)
+        if (_asteroidsEffect == null) return;
+
+        // 점수에 따른 상태 업데이트
+        bool shouldBeAsteroids = (_currentScore >= _asteroidsTargetScore);
+
+        if (_isAsteroids != shouldBeAsteroids)
         {
-            if(_currentScore >= _dustTargetScore)
+            _isAsteroids = shouldBeAsteroids;
+
+            if (_isAsteroids)
             {
-                _dustEffect.SetActive(true);
-                _dustEffect.transform.Rotate(0, 0, _dustRotationSpeed * Time.deltaTime);
+                _asteroidsEffect.SetActive(true);
+                _asteroidsEffect.transform.DOKill(); // 0에서 시작
+                _asteroidsEffect.transform.localScale = Vector3.zero;
+
+                DOVirtual.DelayedCall(0.1f, () => {
+                    // 딜레이 후 애니메이션 실행
+                    if (_isAsteroids)
+                    {
+                        _asteroidsEffect.transform.DOScale(Vector3.one * 3.3f, 0.3f).SetEase(Ease.OutBack);
+                    }
+                });
+            }
+            else
+            {
+                _asteroidsEffect.transform.DOKill();
+                // 사라질 때도 스르륵
+                _asteroidsEffect.transform.DOScale(Vector3.zero, 0.3f)
+                .SetEase(Ease.InBack)
+                .OnComplete(() =>
+                {
+                    // 애니메이션이 완전히 끝난 후 비활성화
+                    if (!_isAsteroids) _asteroidsEffect.SetActive(false);
+                });
             }
         }
-        if(_starSkins != null && !_isStar)
+        if (_isAsteroids && _asteroidsEffect.activeSelf)
+        {
+            _asteroidsEffect.transform.Rotate(0, 0, _asteroidsRotationSpeed * Time.deltaTime);
+        }
+
+        if (_starSkins != null && !_isStar)
         {
             if(_currentScore >= _toStarTargetScore)
             {
@@ -405,10 +502,29 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
     {
         _isStar = true;
 
-        int randomIndex = Random.Range(0,_starSkins.sprites.Length);
+        transform.DOKill();
 
-        photonView.RPC(nameof(RPC_ApplyStarSkin), RpcTarget.AllBuffered, randomIndex);
+        //응축
+        transform.DOScale(_logicScale * 0.1f, 0.7f).SetEase(Ease.InBack).OnComplete(() => {
+
+            //랜덤 스킨 교체
+            int randomIndex = Random.Range(0, _starSkins.sprites.Length);
+            photonView.RPC(nameof(RPC_ApplyStarSkin), RpcTarget.AllBuffered, randomIndex);
+
+            // 터지는 연출
+            transform.DOScale(_logicScale * 1.5f, 0.2f).SetEase(Ease.OutExpo).OnComplete(() => {
+                
+                //크기복구
+                transform.DOScale(_logicScale, 1f).SetEase(Ease.OutElastic);
+            });
+
+            if(SoundManager.Instance != null)
+            {
+                SoundManager.Instance.PlaySFX("sfx_PowerUp");
+            }
+        });
     }
+
     [PunRPC]
     private void RPC_ApplyStarSkin(int index)
     {
@@ -421,8 +537,26 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
     private void ChangeToBlackHole()
     {
         _isBlackHole = true;
-        photonView.RPC(nameof(RPC_ApplyBlackHole),RpcTarget.AllBuffered);
+        transform.DOKill();
+
+        // 응축
+        transform.DOScale(_logicScale * 0.1f, 0.7f).SetEase(Ease.InBack).OnComplete(() => {
+            //블랙홀로 변경
+            photonView.RPC(nameof(RPC_ApplyBlackHole), RpcTarget.AllBuffered);
+            // 터지는 연출
+            transform.DOScale(_logicScale * 1.5f, 0.2f).SetEase(Ease.OutExpo).OnComplete(() => {
+                
+                //원래크기 복구
+                transform.DOScale(_logicScale, 1f).SetEase(Ease.OutBack);
+            });
+
+            if (SoundManager.Instance != null)
+            {
+                SoundManager.Instance.PlaySFX("sfx_PowerUp");
+            }
+        });
     }
+
     [PunRPC]
     private void RPC_ApplyBlackHole()
     {
@@ -443,17 +577,21 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
         switch (data.itemType)
         {
             case ItemType.Shield:
-                StopCoroutine(nameof(Co_ShieldEffect));
-                StartCoroutine(Co_ShieldEffect(data.duration));
+                if (_shieldCoroutine != null) StopCoroutine(_shieldCoroutine);
+                _shieldCoroutine = StartCoroutine(Co_ShieldEffect(data.duration));
                 break;
             case ItemType.Magnet:
-                StopCoroutine(nameof(Co_MagnetEffect));
-                StartCoroutine(Co_MagnetEffect(data.duration, data.amount));
+                if (_magnetCoroutine != null) StopCoroutine(_magnetCoroutine);
+                _magnetCoroutine = StartCoroutine(Co_MagnetEffect(data.duration, data.amount));
                 break;
 
             case ItemType.Boost:
-                StopCoroutine(nameof(Co_BoostEffect));
-                StartCoroutine(Co_BoostEffect(data.duration, data.amount));
+                if (_boostCoroutine != null) StopCoroutine(_boostCoroutine);
+                _boostCoroutine = StartCoroutine(Co_BoostEffect(data.duration, data.amount));
+                if (photonView.IsMine && CamFollow.Instance != null)
+                {
+                    CamFollow.Instance.ShakeCam(0.2f, 1f);
+                }
                 break;
         }
     }
@@ -461,6 +599,7 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
     {
         _isShield = true;
         if (_shieldVisual != null) _shieldVisual.SetActive(true);
+
         SoundManager.Instance.PlaySFX("sfx_Shield_Start");
 
         yield return new WaitForSeconds(duration * 0.8f);
@@ -480,20 +619,22 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
             timeLeft -= blinkInterval;
         }
 
-        if (_isShield)
-        {
-            _isShield = false;
-            if (_shieldVisual != null) _shieldVisual.SetActive(false);
-            SoundManager.Instance.PlaySFX("sfx_Shield_Stop");
-        }
+
+        _isShield = false;
+        if (_shieldVisual != null) _shieldVisual.SetActive(false);
+        SoundManager.Instance.PlaySFX("sfx_Shield_Stop");
+
+        _shieldCoroutine = null;
+        
     }
     IEnumerator Co_MagnetEffect(float duration, float range)
     {
         _isMagnetActive = true;
+        _magnetRange = range;
         if (_magnetVisual != null) _magnetVisual.SetActive(true);
 
-        _magnetRange = range;
         SoundManager.Instance.PlayLoopSFX("sfx_Magnet");
+
         yield return new WaitForSeconds(duration * 0.8f);
 
         float timeLeft = duration * 0.2f;
@@ -511,12 +652,12 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
             timeLeft -= blinkInterval;
         }
 
-        if (_isMagnetActive)
-        {
-            _isMagnetActive = false;
-            if (_magnetVisual != null) _magnetVisual.SetActive(false);
-            SoundManager.Instance.StopLoopSFX();
-        }
+
+        _isMagnetActive = false;
+        if (_magnetVisual != null) _magnetVisual.SetActive(false);
+        SoundManager.Instance.StopLoopSFX();
+
+        _magnetCoroutine = null;
     }
     IEnumerator Co_BoostEffect(float duration, float speedAmount)
     {
@@ -524,5 +665,6 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
         _boosterSpeed = speedAmount;
         yield return new WaitForSeconds(duration);
         _boosterSpeed = 0f;
+        _boostCoroutine = null;
     }
 }

@@ -1,5 +1,5 @@
 using UnityEngine;
-using Photon.Pun;
+using DG.Tweening;
 
 public class CamFollow : MonoBehaviour
 {
@@ -38,11 +38,40 @@ public class CamFollow : MonoBehaviour
         Vector3 desiredPos = _target.position + _offset;
         transform.position = Vector3.Lerp(transform.position, desiredPos, Time.fixedDeltaTime * _smoothSpeed);
 
+        // 플레이어 local스케일 대신 logic스케일 참조
+        float targetScale = 1f;
+        if (_target.TryGetComponent<PlayerCtrl>(out var ctrl))
+        {
+            targetScale = ctrl.LogicScale;
+        }
+        else
+        {
+            targetScale = _target.localScale.x;
+        }
         //플레이어 스케일에 따른 줌크기 변경
-        float targetZoom = _baseSize + (_target.localScale.x * _zoomSensitivity);
+        float targetZoom = _baseSize + (targetScale * _zoomSensitivity);
         targetZoom = Mathf.Clamp(targetZoom, _minSize, _maxSize);
 
         //부드럽게 줌 조절
         _cam.orthographicSize = Mathf.Lerp(_cam.orthographicSize, targetZoom, Time.fixedDeltaTime * _smoothSpeed);
+    }
+
+    public void ShakeCam(float duration, float strength)
+    {
+        transform.DOComplete();
+        transform.DOShakePosition(duration, strength, vibrato: 10, randomness: 90, fadeOut: true).SetUpdate(UpdateType.Fixed);
+    }
+
+    public void ResetCamera(Transform target)
+    {
+        _target = target;
+        Vector3 startPos = _target.position + _offset;
+        transform.position = startPos;
+
+        float targetScale = 0.3f;
+        if (_target.TryGetComponent<PlayerCtrl>(out var ctrl))
+            targetScale = ctrl.LogicScale;
+
+        _cam.orthographicSize = Mathf.Clamp(_baseSize + (targetScale * _zoomSensitivity), _minSize, _maxSize);
     }
 }

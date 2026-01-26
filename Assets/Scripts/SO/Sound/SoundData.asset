@@ -50,3 +50,9 @@ MonoBehaviour:
     clip: {fileID: 8300000, guid: a715fda2b83564640921a88cedf3aebd, type: 3}
   - name: sfx_Magnet
     clip: {fileID: 8300000, guid: c68213960cb2fe545b345eb1a8f1f7b4, type: 3}
+  - name: sfx_Pop
+    clip: {fileID: 8300000, guid: ad00bb05098e9394dbb2b53a1126846b, type: 3}
+  - name: sfx_Lose
+    clip: {fileID: 8300000, guid: e80df991583a8f94eb09c29abb26e028, type: 3}
+  - name: sfx_PowerUp
+    clip: {fileID: 8300000, guid: 2a560170f36a047b19f405dde523ea09, type: 3}

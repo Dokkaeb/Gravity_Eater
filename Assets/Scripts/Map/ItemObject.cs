@@ -38,7 +38,7 @@ public class ItemObject : MonoBehaviourPun
             if(player != null && player.photonView.IsMine)
             {
                 player.ApplyItemEffect(_data);
-
+                
                 MapGenerator.Instance.RequestDestroyItem(transform.position);
             }
         }

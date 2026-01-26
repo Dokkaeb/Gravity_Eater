@@ -33,13 +33,15 @@ public class FoodItem : MonoBehaviour
             transform.localScale = Vector3.one;
         }
     }
+
+    //자석효과 설정
     private void Update()
     {
         if(PlayerCtrl.LocalPlayer != null && PlayerCtrl.LocalPlayer.IsMagnetActive)
         {
             float distance = Vector2.Distance(transform.position, PlayerCtrl.LocalPlayer.transform.position);
 
-            // 플레이어의 반지름(스케일의 절반)을 고려하여 범위를 계산
+            // 플레이어의 반지름비례 자석범위 조정
             float playerRadius = PlayerCtrl.LocalPlayer.transform.localScale.x * 0.5f;
             float effectiveRange = PlayerCtrl.LocalPlayer.MagnetRange + playerRadius;
 
@@ -66,6 +68,7 @@ public class FoodItem : MonoBehaviour
                 if(_mapGenerator != null)
                 {
                     _mapGenerator.RequestEatFood(_foodID,pv.ViewID);
+                    SoundManager.Instance.PlaySFX("sfx_Pop");
                 }
             }
         }
