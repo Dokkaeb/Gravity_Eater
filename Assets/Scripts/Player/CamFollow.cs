@@ -62,16 +62,14 @@ public class CamFollow : MonoBehaviour
         transform.DOShakePosition(duration, strength, vibrato: 10, randomness: 90, fadeOut: true).SetUpdate(UpdateType.Fixed);
     }
 
-    public void ResetCamera(Transform target)
+    public void FastMove(Vector3 targetPos)
     {
-        _target = target;
-        Vector3 startPos = _target.position + _offset;
-        transform.position = startPos;
+        // DOTween 애니메이션이 실행 중이라면 즉시 종료 (Shake 등 간섭 방지)
+        transform.DOKill();
 
-        float targetScale = 0.3f;
-        if (_target.TryGetComponent<PlayerCtrl>(out var ctrl))
-            targetScale = ctrl.LogicScale;
+        // Lerp 없이 즉시 목표 위치 + 오프셋으로 이동
+        transform.position = targetPos + _offset;
 
-        _cam.orthographicSize = Mathf.Clamp(_baseSize + (targetScale * _zoomSensitivity), _minSize, _maxSize);
+        Debug.Log("카메라 위치 즉시 갱신 (워프 대응)");
     }
 }

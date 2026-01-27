@@ -2,56 +2,49 @@ using UnityEngine;
 
 public class MapBoundary : MonoBehaviour
 {
-    LineRenderer _lineRenderer;
-    Transform _playerTransform;
-
     [Header("설정")]
-    [SerializeField] float _mapSize = 100f;
+    [SerializeField] float _mapSize = 110f;
     [SerializeField] float _detectDistance = 15f;
     [SerializeField] Color _lineColor = Color.cyan;
     [SerializeField] float _lineWidth = 0.8f;
 
-    private void Start()
+    [Header("워프 설정")]
+    [SerializeField] float _warpOffset = 10f;
+
+    LineRenderer _lineRenderer;
+    Transform _playerTransform;
+
+    private void Awake()
     {
         _lineRenderer = GetComponent<LineRenderer>();
-        SetupLine();
+    }
+    private void Start()
+    {    
+        SetupBoundary();
     }
 
-    private void SetupLine()
+    private void SetupBoundary()
     {
-        _lineRenderer.positionCount = 4;
-        _lineRenderer.loop = true;
-        _lineRenderer.useWorldSpace = true;
-        _lineRenderer.startWidth = _lineWidth;
-        _lineRenderer.endWidth = _lineWidth;
-
         float s = _mapSize;
-        Vector3[] corners = { 
+        Vector3[] corners = {
             new Vector3(-s,-s,0),
             new Vector3(s,-s,0),
             new Vector3(s,s,0),
             new Vector3(-s,s,0)
         };
+
+        _lineRenderer.positionCount = corners.Length;
         _lineRenderer.SetPositions(corners);
-
         _lineRenderer.material = new Material(Shader.Find("Sprites/Default"));
-
-        Color c = _lineColor;
-        c.a = 0;
-        _lineRenderer.startColor = c;
-        _lineRenderer.endColor = c;
+        _lineRenderer.startWidth = _lineWidth;
+        _lineRenderer.endWidth = _lineWidth;
+        _lineRenderer.loop = true;
     }
 
     private void Update()
     {
-        if (_playerTransform == null)
-        {
-            if (PlayerCtrl.LocalPlayer != null)
-            {
-                _playerTransform = PlayerCtrl.LocalPlayer.transform;
-            }
-            return;
-        }
+        if (PlayerCtrl.LocalPlayer == null) return;
+        _playerTransform = PlayerCtrl.LocalPlayer.transform;
 
         UpdateBoundaryAlpha();
     }
@@ -85,10 +78,51 @@ public class MapBoundary : MonoBehaviour
         // 네 방향 중 가장 가까운 벽과의 거리를 선택
         float minDist = Mathf.Min(distToRight, distToLeft, distToTop, distToBottom);
 
-        // 만약 맵 밖으로 나간 경우(dx, dy > 0)까지 고려한 안전장치
-        if (Mathf.Abs(pos.x) > _mapSize || Mathf.Abs(pos.y) > _mapSize)
-            return 0;
-
         return minDist;
+    }
+
+    public void BoundaryWarp(string wallName)
+    {
+        Vector3 pos = _playerTransform.position;
+        bool isWarped = false;
+
+        // 플레이어 크기에 따른 마진 확보
+        float playerRadius = _playerTransform.localScale.x * 0.8f;
+        float finalOffset = _warpOffset + playerRadius;
+
+        switch (wallName)
+        {
+            case "Right":
+                pos.x = -_mapSize + finalOffset;
+                isWarped = true;
+                break;
+            case "Left":
+                pos.x = _mapSize - finalOffset;
+                isWarped = true;
+                break;
+            case "Top":
+                pos.y = -_mapSize + finalOffset;
+                isWarped = true;
+                break;
+            case "Bottom":
+                pos.y = _mapSize - finalOffset;
+                isWarped = true;
+                break;
+        }
+
+        if (isWarped)
+        {
+            _playerTransform.position = pos;
+
+            if (CamFollow.Instance != null)
+            {
+                CamFollow.Instance.FastMove(pos);
+            }
+
+            Rigidbody2D rb = _playerTransform.GetComponent<Rigidbody2D>();
+            if (rb != null) rb.linearVelocity = Vector2.zero;
+
+            Debug.Log("강제 워프");
+        }
     }
 }

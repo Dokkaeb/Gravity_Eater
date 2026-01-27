@@ -14,6 +14,19 @@ public class HeadDetector : MonoBehaviour
     {
         if (!_player.photonView.IsMine) return;
 
+
+        //경계선 부딪히면
+        if (collision.CompareTag("Wall"))
+        {
+            MapBoundary boundary = collision.GetComponentInParent<MapBoundary>();
+            if (boundary != null)
+            {
+                boundary.BoundaryWarp(collision.name);
+            }
+            return;
+        }
+
+        //적이랑 부딪히면
         if (collision.CompareTag("Player"))
         {
             PhotonView targetPV = collision.GetComponent<PhotonView>();

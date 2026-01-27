@@ -13,7 +13,7 @@ public class MapGenerator : MonoBehaviourPunCallbacks
     [Header("세팅")]
     [SerializeField] int _maxFoodOnMap = 1000; //맵에 유지할 먹이갯수
     [SerializeField] float _mapSize = 100f;
-    [SerializeField] int _maxItemOnMap = 10;
+    [SerializeField] int _maxItemOnMap = 20;
     [SerializeField] int initialItemCount = 5;
 
     [Header("프리팹 설정")]
@@ -362,7 +362,7 @@ public class MapGenerator : MonoBehaviourPunCallbacks
 
         while (true)
         {
-            // 딕셔너리에서 비활성화된(이미 먹힌) 데이터 정리
+            // 딕셔너리에서 이미 먹힌 데이터 정리
             var keysToRemove = _activeItemDict
                 .Where(kvp => kvp.Value == null || !kvp.Value.activeInHierarchy)
                 .Select(kvp => kvp.Key)
@@ -370,9 +370,23 @@ public class MapGenerator : MonoBehaviourPunCallbacks
 
             foreach (var key in keysToRemove) _activeItemDict.Remove(key);
 
-            if (PhotonNetwork.IsMasterClient && _activeItemDict.Count < _maxItemOnMap)
+            //마스터가 아이템 생성 진행
+            if (PhotonNetwork.IsMasterClient)
             {
-                SpawnRandomItem();
+                int itemsToSpawn = 5; // 한 번에 생성하고 싶은 개수
+
+                for (int i = 0; i < itemsToSpawn; i++)
+                {
+                    // 맵에 깔린 아이템이 최대치를 넘지 않을 때만 생성
+                    if (_activeItemDict.Count < _maxItemOnMap)
+                    {
+                        SpawnRandomItem();
+                    }
+                    else
+                    {
+                        break; // 최대치에 도달하면 더 이상 생성하지 않고 중단
+                    }
+                }
             }
 
             //다음 스폰까지 대기

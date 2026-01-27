@@ -7,7 +7,9 @@ using DG.Tweening;
 public class PlayerCtrl : MonoBehaviourPun, IPunObservable
 {
     public static PlayerCtrl LocalPlayer;
-    public enum PlayerState { Move, Dash ,Dead }
+    public enum PlayerState { Move, Dash ,Dead, Stun }
+
+    #region 필드, 프로퍼티
 
     [Header("기본세팅")]
     [SerializeField] PlayerState _currentState = PlayerState.Move;
@@ -39,6 +41,7 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
     bool _isBlackHole = false;
     Tween _scaleTween;
     float _logicScale = 1f;
+    NickNameSet _nameSet;
 
     [Header("행성스킨 SO")]
     [SerializeField] PlanetSkins _planetSkins;
@@ -69,11 +72,13 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
     SpriteRenderer _spr;
     ParticleSystem _dashTrailParticle;
     Texture2D _currentSkinTex;
+    #endregion
 
     private void Awake()
     {
         _rb = GetComponent<Rigidbody2D>();
         _spr = GetComponent<SpriteRenderer>();
+        _nameSet = GetComponentInChildren<NickNameSet>();
 
         if (_dashTrail != null)
         {
@@ -165,7 +170,7 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
 
     private void FixedUpdate()
     {
-        if (!photonView.IsMine || _currentState == PlayerState.Dead) return;
+        if (!photonView.IsMine || _currentState == PlayerState.Dead || _currentState == PlayerState.Stun) return;
 
         HandleRotation();
 
@@ -184,7 +189,7 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
 
     public void OnDashInput(InputAction.CallbackContext ctx)
     {
-        if(!photonView.IsMine || _currentState == PlayerState.Dead) return;
+        if(!photonView.IsMine || _currentState == PlayerState.Dead || _currentState == PlayerState.Stun) return;
 
         if(ctx.started && _currentScore > 0)
         {
@@ -347,10 +352,15 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
         if (isSlow)
         {
             _slowMultiplier = multiplier;
+            if (_nameSet != null) _nameSet.SetSlowVisual(true);
+            if (_spr != null) _spr.color = new Color(0.6f, 0.7f, 1f, 1f);
         }
         else
         {
             _slowMultiplier = 1f;
+            if (_nameSet != null) _nameSet.SetSlowVisual(false);
+            if (_spr != null && !_isInvincible && _currentState != PlayerState.Stun)
+                _spr.color = Color.white;
         }
     }
 
@@ -680,5 +690,28 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
         yield return new WaitForSeconds(duration);
         _boosterSpeed = 0f;
         _boostCoroutine = null;
+    }
+
+    public void ApplyStun(float duration)
+    {
+        if (_currentState == PlayerState.Dead) return;
+        StartCoroutine(Co_StunProcess(duration));
+    }
+    IEnumerator Co_StunProcess(float duration)
+    {
+        _currentState = PlayerState.Stun;
+        _rb.linearVelocity = Vector2.zero;
+
+        if (_nameSet != null) _nameSet.SetStunVisual(true);
+        if (_spr != null) _spr.color = Color.gray;
+
+        yield return new WaitForSeconds(duration);
+
+        if(_currentState != PlayerState.Dead)
+        {
+            _currentState = PlayerState.Move;
+            if (_spr != null) _spr.color = Color.white;
+            if (_nameSet != null) _nameSet.SetStunVisual(false);
+        }
     }
 }

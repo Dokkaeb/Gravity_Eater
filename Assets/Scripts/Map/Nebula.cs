@@ -1,5 +1,3 @@
-using DG.Tweening;
-using Photon.Pun;
 using System.Collections;
 using UnityEngine;
 
@@ -68,15 +66,19 @@ public class Nebula : MonoBehaviour
                 if (_data.type == NebulaType.Red)
                 {
                     player.AddScore(-_data.scorePenalty);
+
+                    //위치이동
                     Vector2 randomPos = new Vector2(Random.Range(-50, 50), Random.Range(-50, 50));
                     player.transform.position = randomPos;
 
-                    DOVirtual.DelayedCall(0.2f, () => {
-                        if (CamFollow.Instance != null)
-                        {
-                            CamFollow.Instance.ShakeCam(1f, 2f);
-                        }
-                    });
+                    //스턴2초
+                    player.ApplyStun(2.0f);
+
+                    if (CamFollow.Instance != null)
+                    {
+                        CamFollow.Instance.FastMove(player.transform.position);
+                        CamFollow.Instance.ShakeCam(1f, 2f);
+                    }
                 }
                 else if (_data.type == NebulaType.Blue)
                 {
