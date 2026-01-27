@@ -34,10 +34,13 @@ public class MapGenerator : MonoBehaviourPunCallbacks
     private Dictionary<int,GameObject> _activeFoods = new Dictionary<int,GameObject>();
 
     //아이템 추적용 리스트
-    private List<GameObject> _activeItems = new List<GameObject>();
+    private Dictionary<int,GameObject> _activeItemDict = new Dictionary<int, GameObject>();
+
+    private HashSet<int> _eatenFoodIds = new HashSet<int>(); //늦게들어온 유저가 비활성화시킬 이미 먹은 먹이들
 
     //전리품 ID는 먹이랑 안곂치게 큰숫자부터 시작
     private int _lootIdCounter = 100000;
+    private int _itemIdCounter = 500000; //아이템 아이디
     private System.Random _prng;
     #endregion
 
@@ -108,7 +111,13 @@ public class MapGenerator : MonoBehaviourPunCallbacks
         {
             return;
         }
-        
+        //로컬에서 먼저 없애버리기
+        if (_activeFoods.TryGetValue(id, out GameObject food))
+        {
+            // 시각적으로만 먼저 꺼버림 (고스트 현상 방지)
+            food.SetActive(false);
+        }
+
         photonView.RPC(nameof(RPC_MasterProcessEat), RpcTarget.MasterClient, id, viewID);
     }
 
@@ -134,7 +143,12 @@ public class MapGenerator : MonoBehaviourPunCallbacks
             PoolManager.Instance.Release(food);
             _activeFoods.Remove(id);
 
-            
+            //일반먹이가 먹혔다는거 기록용
+            if (id < 100000)
+            {
+                _eatenFoodIds.Add(id);
+            }
+
             AwardScore(viewID, score);
             //일반먹이면 일정시간후 재생성
             if (id < 100000 && PhotonNetwork.IsMasterClient)
@@ -163,6 +177,12 @@ public class MapGenerator : MonoBehaviourPunCallbacks
     [PunRPC]
     private void RPC_SpawnSpecificFood(int id, Vector3 pos)
     {
+        //먹이 다시생성됬으니 목록에서 제거
+        if (id < 100000)
+        {
+            _eatenFoodIds.Remove(id);
+        }
+
         CreateFood(id, pos);
     }
     #endregion
@@ -234,8 +254,25 @@ public class MapGenerator : MonoBehaviourPunCallbacks
         {
             // 마스터가 새로 들어온 유저에게만 현재 활성화된 모든 전리품 정보를 보냄
             SendCurrentLootToNewPlayer(newPlayer);
+
+            //지금 먹혀서 없는 일반먹이id목록 넘기기
+            int[] eatenIds = _eatenFoodIds.ToArray();
+            photonView.RPC(nameof(RPC_SyncEatenFoods), newPlayer, eatenIds);
         }
     }
+
+    [PunRPC]
+    private void RPC_SyncEatenFoods(int[] eatenIds)
+    {
+        foreach (int id in eatenIds)
+        {
+            if (_activeFoods.TryGetValue(id, out GameObject food))
+            {
+                food.SetActive(false); // 이미 누군가 먹은 것이므로 끔                                
+            }
+        }
+    }
+
     private void SendCurrentLootToNewPlayer(Player targetPlayer)
     {
         // 현재 활성화된 전리품 중 ID가 100000 이상인 것들만 추출
@@ -248,6 +285,20 @@ public class MapGenerator : MonoBehaviourPunCallbacks
 
         // RpcTarget.AllBuffered 대신 특정 유저(targetPlayer)에게만 전송
         photonView.RPC(nameof(RPC_SpawnLootBatch), targetPlayer, ids, positions);
+    }
+
+    public override void OnMasterClientSwitched(Player newMasterClient)
+    {
+        Debug.Log($"방장이 변경됨{newMasterClient.NickName}");
+
+        if (newMasterClient.IsLocal)
+        {
+            StopAllCoroutines();
+
+            //함정,아이템 재시작
+            StartCoroutine(Co_NebulaSpawner());
+            StartCoroutine(Co_ItemSpawner());
+        }
     }
 
     #endregion
@@ -299,8 +350,10 @@ public class MapGenerator : MonoBehaviourPunCallbacks
 
         int dataIdx = Random.Range(0, _itemTypes.Length);
 
+        int newId = _itemIdCounter++;
+
         // 모든 클라이언트에게 생성 명령
-        photonView.RPC(nameof(RPC_SpawnItem), RpcTarget.All, spawnPos, dataIdx);
+        photonView.RPC(nameof(RPC_SpawnItem), RpcTarget.All, spawnPos, dataIdx, newId);
     }
 
     IEnumerator Co_ItemSpawner()
@@ -309,18 +362,17 @@ public class MapGenerator : MonoBehaviourPunCallbacks
 
         while (true)
         {
-            // 현재 맵에 깔린 아이템 개수 체크 (리스트에서 비활성화된 것은 제거)
-            _activeItems.RemoveAll(item => item == null || !item.activeInHierarchy);
+            // 딕셔너리에서 비활성화된(이미 먹힌) 데이터 정리
+            var keysToRemove = _activeItemDict
+                .Where(kvp => kvp.Value == null || !kvp.Value.activeInHierarchy)
+                .Select(kvp => kvp.Key)
+                .ToList();
 
-            // 최대 개수보다 적을 때만 생성
-            if (_activeItems.Count < _maxItemOnMap)
+            foreach (var key in keysToRemove) _activeItemDict.Remove(key);
+
+            if (PhotonNetwork.IsMasterClient && _activeItemDict.Count < _maxItemOnMap)
             {
-                int spawnBatch = Mathf.Min(3, _maxItemOnMap - _activeItems.Count);
-
-                for (int i = 0; i < spawnBatch; i++)
-                {
-                    SpawnRandomItem();
-                }
+                SpawnRandomItem();
             }
 
             //다음 스폰까지 대기
@@ -329,51 +381,38 @@ public class MapGenerator : MonoBehaviourPunCallbacks
     }
 
     [PunRPC]
-    private void RPC_SpawnItem(Vector3 pos,int dataIdx)
+    private void RPC_SpawnItem(Vector3 pos,int dataIdx,int itemId)
     {
         GameObject itemObj = PoolManager.Instance.Get(_itemPrefab);
         itemObj.transform.position = pos;
         itemObj.SetActive(true);
 
-        itemObj.GetComponent<ItemObject>().Setup(_itemTypes[dataIdx]);
+        itemObj.GetComponent<ItemObject>().Setup(_itemTypes[dataIdx],itemId);
 
-        // 생성된 아이템을 리스트에 추가하여 관리
-        if (!_activeItems.Contains(itemObj))
-        {
-            _activeItems.Add(itemObj);
-        }
+        //딕셔너리에 등록
+        _activeItemDict[itemId] = itemObj;
     }
 
-    public void RequestDestroyItem(Vector3 pos)
+    public void RequestDestroyItem(int itemId)
     {
-        photonView.RPC(nameof(RPC_MasterDestroyItem), RpcTarget.MasterClient, pos);
+        photonView.RPC(nameof(RPC_MasterDestroyItem), RpcTarget.MasterClient, itemId);
     }
     [PunRPC]
-    private void RPC_MasterDestroyItem(Vector3 pos)
+    private void RPC_MasterDestroyItem(int itemId)
     {
+        if (!PhotonNetwork.IsMasterClient) return;
         // 마스터가 모두에게 삭제 명령
-        photonView.RPC(nameof(RPC_FinalizeDestroyItem), RpcTarget.All, pos);
+        if (_activeItemDict.ContainsKey(itemId))
+        {
+            photonView.RPC(nameof(RPC_FinalizeDestroyItem), RpcTarget.All, itemId);
+        }
     }
     [PunRPC]
-    private void RPC_FinalizeDestroyItem(Vector3 pos)
+    private void RPC_FinalizeDestroyItem(int itemId)
     {
-        // 해당 위치에 있는 아이템을 찾아서 삭제 (또는 풀에 반환)
-        // _activeItems 리스트에서 가장 가까운 아이템을 찾습니다.
-        GameObject targetItem = null;
-        float minDist = 0.5f; // 오차 범위
-
-        foreach (var item in _activeItems)
+        if (_activeItemDict.TryGetValue(itemId, out GameObject targetItem))
         {
-            if (item != null && Vector3.Distance(item.transform.position, pos) < minDist)
-            {
-                targetItem = item;
-                break;
-            }
-        }
-
-        if (targetItem != null)
-        {
-            _activeItems.Remove(targetItem);
+            _activeItemDict.Remove(itemId);
             PoolManager.Instance.Release(targetItem);
         }
     }

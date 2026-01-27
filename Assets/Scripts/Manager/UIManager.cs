@@ -17,6 +17,10 @@ public class UIManager : MonoBehaviour
     [SerializeField] GameObject _deathPanel;
     [SerializeField] TextMeshProUGUI _finalScoreTxt;
 
+    [Header("기타 UI")]
+    [SerializeField] GameObject _setPanel;
+    [SerializeField] GameObject _soundSetPanel;
+
     [Header("파이어 베이스 매니저")]
     [SerializeField] private FirebaseManager _firebaseManager;
 
@@ -63,6 +67,12 @@ public class UIManager : MonoBehaviour
 
     public void ShowDeathUI(float finalScore)
     {
+        if (_setPanel != null && _soundSetPanel != null) 
+        { 
+            _soundSetPanel.SetActive(false);
+            _setPanel.SetActive(false); 
+        }
+
         if(_deathPanel != null)
         {
             _deathPanel.SetActive(true);

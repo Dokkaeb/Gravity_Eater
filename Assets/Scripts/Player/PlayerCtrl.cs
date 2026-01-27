@@ -86,6 +86,11 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
         if (photonView.IsMine)
         {
             LocalPlayer = this;
+            //시작하자마자 무적상태 명시적으로 끄고 시작
+            ExitGames.Client.Photon.Hashtable props = new ExitGames.Client.Photon.Hashtable();
+            props.Add("IsInvincible", false);
+            PhotonNetwork.LocalPlayer.SetCustomProperties(props);
+
             StartCoroutine(Co_SpawnProtection(2f)); // 스폰 보호
 
             // 카메라 매니저에게 나를 타겟으로 설정하라고 알림
@@ -111,8 +116,13 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
         _isInvincible = true;
         Debug.Log("잠깐 무적");
 
+        //포톤 커스텀 프로퍼티에 무적상태 등록
+        ExitGames.Client.Photon.Hashtable props = new ExitGames.Client.Photon.Hashtable();
+        props.Add("IsInvincible", true);
+        PhotonNetwork.LocalPlayer.SetCustomProperties(props);
+
         //반투명
-        if(_spr != null)
+        if (_spr != null)
         {
             Color c = _spr.color;
             c.a = 0.5f;
@@ -122,6 +132,10 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
         yield return new WaitForSeconds(duration);
 
         _isInvincible = false;
+
+        //무적해제 프로퍼티 업데이트
+        props["IsInvincible"] = false;
+        PhotonNetwork.LocalPlayer.SetCustomProperties(props);
 
         if (_spr != null)
         {

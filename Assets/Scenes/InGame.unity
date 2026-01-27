@@ -1032,10 +1032,10 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Resum
+  m_text: Resume
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
-  m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: cedf7314932a1c440ba8da854f5efa58, type: 2}
+  m_sharedMaterial: {fileID: -5898325535298585555, guid: cedf7314932a1c440ba8da854f5efa58, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -6891,8 +6891,8 @@ MonoBehaviour:
       m_Calls: []
   m_text: Sound
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
-  m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: cedf7314932a1c440ba8da854f5efa58, type: 2}
+  m_sharedMaterial: {fileID: -5898325535298585555, guid: cedf7314932a1c440ba8da854f5efa58, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -7399,8 +7399,8 @@ MonoBehaviour:
       m_Calls: []
   m_text: Save&Exit
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
-  m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: cedf7314932a1c440ba8da854f5efa58, type: 2}
+  m_sharedMaterial: {fileID: -5898325535298585555, guid: cedf7314932a1c440ba8da854f5efa58, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -11115,7 +11115,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MapBoundary
   _mapSize: 110
-  _detectDistance: 15
+  _detectDistance: 20
   _lineColor: {r: 0, g: 1, b: 1, a: 1}
   _lineWidth: 0.8
 --- !u!1001 &1217766861
@@ -18264,6 +18264,8 @@ MonoBehaviour:
   _leaderboardView: {fileID: 1409390182}
   _deathPanel: {fileID: 1465699797}
   _finalScoreTxt: {fileID: 696862872}
+  _setPanel: {fileID: 1993084713}
+  _soundSetPanel: {fileID: 1710986021}
   _firebaseManager: {fileID: 1588228337}
 --- !u!4 &2141625767
 Transform:
