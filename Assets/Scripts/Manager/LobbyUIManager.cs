@@ -1,4 +1,3 @@
-
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -11,6 +10,7 @@ public class LobbyUIManager : MonoBehaviour
     [SerializeField] Button _joinButton;
     [SerializeField] Button _quitButton;
     [SerializeField] Text _statusText;
+    [SerializeField] Text _infoText;
 
     [Header("리더보드 UI")]
     [SerializeField] LeaderboardView _leaderboardView;
@@ -32,6 +32,7 @@ public class LobbyUIManager : MonoBehaviour
             _quitButton.onClick.AddListener(OnClickQuit);
         }
     }
+    
     public void InitLeaderboard()
     {
         _leaderboardPresenter = new LeaderboardPresenter(_leaderboardView, FirebaseManager.Instance);
@@ -41,6 +42,13 @@ public class LobbyUIManager : MonoBehaviour
 
     public void UpdateStatus(string msg) => _statusText.text = msg;
     public void SetJoinButtonActive(bool isActive) => _joinButton.interactable = isActive;
+
+    public void UpdateServerInfo(int players, int rooms)
+    {
+        string infoMsg = $"(접속자: {players}/20 | 생성된 방: {rooms})";
+
+        _infoText.text = $"현재 상태:  \n {infoMsg}";
+    }
 
     public void OnClickStart()
     {
