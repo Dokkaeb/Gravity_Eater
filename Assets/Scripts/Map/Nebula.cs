@@ -3,6 +3,8 @@ using UnityEngine;
 
 public class Nebula : MonoBehaviour
 {
+    public int DataIndex { get; private set; }
+    public int NebulaId { get; private set; }
     public enum NebulaType { Red, Blue };
     NebulaData _data;
     SpriteRenderer _spr;
@@ -18,9 +20,11 @@ public class Nebula : MonoBehaviour
     {
         _spr = GetComponent<SpriteRenderer>();
     }
-    public void Setup(NebulaData data)
+    public void Setup(NebulaData data, int dataIndex, int id)
     {
         _data = data;
+        this.DataIndex = dataIndex;
+        this.NebulaId = id;
         _spr.sprite = data.sprite;
 
         float speed = Random.Range(30f, 60f);
@@ -52,7 +56,7 @@ public class Nebula : MonoBehaviour
             transform.localScale = Vector3.one * t;
             yield return null;
         }
-
+        MapGenerator.Instance.OnNebulaDestroyed(NebulaId);
         PoolManager.Instance.Release(gameObject);
     }
 
@@ -70,6 +74,8 @@ public class Nebula : MonoBehaviour
                     //위치이동
                     Vector2 randomPos = new Vector2(Random.Range(-50, 50), Random.Range(-50, 50));
                     player.transform.position = randomPos;
+
+                    SoundManager.Instance.PlaySFX("sfx_Bite");
 
                     //스턴2초
                     player.ApplyStun(2.0f);

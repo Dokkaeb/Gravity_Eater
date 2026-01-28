@@ -35,11 +35,13 @@ public class MapGenerator : MonoBehaviourPunCallbacks
 
     //아이템 추적용 리스트
     private Dictionary<int,GameObject> _activeItemDict = new Dictionary<int, GameObject>();
+    private Dictionary<int,GameObject> _activeNebulaDict = new Dictionary<int, GameObject>();
 
     private HashSet<int> _eatenFoodIds = new HashSet<int>(); //늦게들어온 유저가 비활성화시킬 이미 먹은 먹이들
 
     //전리품 ID는 먹이랑 안곂치게 큰숫자부터 시작
     private int _lootIdCounter = 100000;
+    private int _nebulaIdCounter = 200000; //네뷸라 아이디
     private int _itemIdCounter = 500000; //아이템 아이디
     private System.Random _prng;
     #endregion
@@ -258,6 +260,10 @@ public class MapGenerator : MonoBehaviourPunCallbacks
             //지금 먹혀서 없는 일반먹이id목록 넘기기
             int[] eatenIds = _eatenFoodIds.ToArray();
             photonView.RPC(nameof(RPC_SyncEatenFoods), newPlayer, eatenIds);
+
+            //네뷸라, 아이템 동기화
+            SyncNebulasToNewPlayer(newPlayer);
+            SyncItemsToNewPlayer(newPlayer);
         }
     }
 
@@ -301,6 +307,32 @@ public class MapGenerator : MonoBehaviourPunCallbacks
         }
     }
 
+    private void SyncNebulasToNewPlayer(Player targetPlayer)
+    {
+        if (_activeNebulaDict.Count == 0) return;
+
+        int[] ids = _activeNebulaDict.Keys.ToArray();
+        Vector3[] positions = _activeNebulaDict.Values.Select(v => v.transform.position).ToArray();
+        int[] dataIndices = _activeNebulaDict.Values.Select(v => {
+
+            return v.GetComponent<Nebula>().DataIndex;
+        }).ToArray();
+
+        photonView.RPC(nameof(RPC_SyncNebulaBatch), targetPlayer, ids, positions, dataIndices);
+    }
+
+    private void SyncItemsToNewPlayer(Player targetPlayer)
+    {
+        var activeItems = _activeItemDict.Where(kvp => kvp.Value != null && kvp.Value.activeInHierarchy).ToList();
+        if (activeItems.Count == 0) return;
+
+        int[] ids = activeItems.Select(kvp => kvp.Key).ToArray();
+        Vector3[] positions = activeItems.Select(kvp => kvp.Value.transform.position).ToArray();
+        int[] dataIndices = activeItems.Select(kvp => kvp.Value.GetComponent<ItemObject>().DataIndex).ToArray();
+
+        photonView.RPC(nameof(RPC_SyncItemBatch), targetPlayer, ids, positions, dataIndices);
+    }
+
     #endregion
 
     #region 함정(네뷸라) 생성
@@ -312,32 +344,76 @@ public class MapGenerator : MonoBehaviourPunCallbacks
         while (true)
         {
             yield return new WaitForSeconds(_nebulaSpawnInterval);
-
-            int spawnCount = 5;
-
-            for (int i = 0; i < spawnCount; i++)
+            if (PhotonNetwork.IsMasterClient)
             {
-                float x = Random.Range(-_mapSize, _mapSize);
-                float y = Random.Range(-_mapSize, _mapSize);
-                Vector3 spawnPos = new Vector3(x, y, 0);
+                int spawnCount = 5;
+                for (int i = 0; i < spawnCount; i++)
+                {
+                    float x = Random.Range(-_mapSize, _mapSize);
+                    float y = Random.Range(-_mapSize, _mapSize);
+                    Vector3 spawnPos = new Vector3(x, y, 0);
+                    int dataIdx = Random.Range(0, _nebulaTypes.Length);
+                    int newId = _nebulaIdCounter++;
 
-                int dataIdx = Random.Range(0, _nebulaTypes.Length);
+                    photonView.RPC(nameof(RPC_SpawnNebula), RpcTarget.All, spawnPos, dataIdx, newId);
 
-                // 마스터가 모든 클라이언트에게 개별적으로 생성 명령 전송
-                photonView.RPC(nameof(RPC_SpawnNebula), RpcTarget.All, spawnPos, dataIdx);
+                    StartCoroutine(Co_DestroyNebulaAfterTime(newId, 20f)); //마스터가 파괴하게 예약
+                }
             }
         }
     }
 
     [PunRPC]
-    private void RPC_SpawnNebula(Vector3 pos,int dataIdx)
+    private void RPC_SpawnNebula(Vector3 pos,int dataIdx, int nebulaId)
     {
+        if (_activeNebulaDict.ContainsKey(nebulaId)) return;
+
         GameObject nebulaObj = PoolManager.Instance.Get(_nebulaPrefab);
         nebulaObj.transform.position = pos;
         nebulaObj.SetActive(true);
 
-        nebulaObj.GetComponent<Nebula>().Setup(_nebulaTypes[dataIdx]);
+        // Setup 시 ID와 인덱스 저장
+        nebulaObj.GetComponent<Nebula>().Setup(_nebulaTypes[dataIdx], dataIdx, nebulaId);
+        _activeNebulaDict[nebulaId] = nebulaObj;
     }
+
+    [PunRPC]
+    private void RPC_SyncNebulaBatch(int[] ids, Vector3[] positions, int[] dataIndices)
+    {
+        for (int i = 0; i < ids.Length; i++)
+        {
+            RPC_SpawnNebula(positions[i], dataIndices[i], ids[i]);
+        }
+    }
+
+    public void OnNebulaDestroyed(int nebulaId)
+    {
+        if (_activeNebulaDict.ContainsKey(nebulaId))
+        {
+            _activeNebulaDict.Remove(nebulaId);
+        }
+    }
+    // 마스터만 실행하는 파괴 예약 코루틴
+    IEnumerator Co_DestroyNebulaAfterTime(int nebulaId, float delay)
+    {
+        yield return new WaitForSeconds(delay);
+
+        // 마스터가 여전히 마스터라면 모두에게 파괴 명령
+        if (PhotonNetwork.IsMasterClient)
+        {
+            photonView.RPC(nameof(RPC_FinalizeDestroyNebula), RpcTarget.All, nebulaId);
+        }
+    }
+    [PunRPC]
+    private void RPC_FinalizeDestroyNebula(int nebulaId)
+    {
+        if (_activeNebulaDict.TryGetValue(nebulaId, out GameObject nebulaObj))
+        {
+            _activeNebulaDict.Remove(nebulaId);
+            PoolManager.Instance.Release(nebulaObj);
+        }
+    }
+
     #endregion
 
     #region 아이템 생성, 파괴
@@ -395,15 +471,18 @@ public class MapGenerator : MonoBehaviourPunCallbacks
     }
 
     [PunRPC]
-    private void RPC_SpawnItem(Vector3 pos,int dataIdx,int itemId)
+    private void RPC_SpawnItem(Vector3 pos, int dataIdx, int itemId)
     {
+        // 이미 딕셔너리에 있다면 중복 생성 방지
+        if (_activeItemDict.ContainsKey(itemId)) return;
+
         GameObject itemObj = PoolManager.Instance.Get(_itemPrefab);
         itemObj.transform.position = pos;
         itemObj.SetActive(true);
 
-        itemObj.GetComponent<ItemObject>().Setup(_itemTypes[dataIdx],itemId);
+        // Setup 시 dataIdx도 저장하도록 ItemObject 스크립트가 수정되어야 함
+        itemObj.GetComponent<ItemObject>().Setup(_itemTypes[dataIdx], itemId, dataIdx);
 
-        //딕셔너리에 등록
         _activeItemDict[itemId] = itemObj;
     }
 
@@ -431,5 +510,19 @@ public class MapGenerator : MonoBehaviourPunCallbacks
         }
     }
 
+    [PunRPC]
+    private void RPC_SyncItemBatch(int[] ids, Vector3[] positions, int[] dataIndices)
+    {
+        for (int i = 0; i < ids.Length; i++)
+        {
+            if (_activeItemDict.ContainsKey(ids[i])) continue;
+
+            GameObject itemObj = PoolManager.Instance.Get(_itemPrefab);
+            itemObj.transform.position = positions[i];
+            itemObj.SetActive(true);
+            itemObj.GetComponent<ItemObject>().Setup(_itemTypes[dataIndices[i]], ids[i], dataIndices[i]);
+            _activeItemDict[ids[i]] = itemObj;
+        }
+    }
     #endregion
 }

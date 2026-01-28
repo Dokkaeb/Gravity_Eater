@@ -12,15 +12,18 @@ public class ItemObject : MonoBehaviourPun
     SpriteRenderer _spr;
     int _itemId;
 
+    public int DataIndex { get; private set; }
+
     private void Awake()
     {
         _spr = GetComponent<SpriteRenderer>();
     }
     
-    public void Setup(ItemData data,int id)
+    public void Setup(ItemData data,int id, int dataIndex)
     {
         _data = data;
         _itemId = id;
+        this.DataIndex = dataIndex;
         _spr.sprite = data.itemSprite;
     }
     private void Start()

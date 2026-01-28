@@ -61,6 +61,11 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
     Coroutine _magnetCoroutine;
     Coroutine _boostCoroutine;
 
+    [Header("¹Ì´Ï¸Ê ¼³Á¤")]
+    [SerializeField] SpriteRenderer _minimapIcon;
+    [SerializeField] Color _myColor = Color.green;
+    [SerializeField] Color _enemyColor = Color.red;
+
     public float SlowMultiplier => _slowMultiplier;
     public float MagnetRange => _magnetRange * (transform.localScale.x * 0.8f);
     public float LogicScale => _logicScale;
@@ -113,7 +118,19 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
                 UIManager.Instance.ConnectScore(_currentScore);
             }
         }
-
+        if (_minimapIcon != null)
+        {
+            if (photonView.IsMine)
+            {
+                _minimapIcon.color = _myColor;
+                _minimapIcon.sortingOrder = 10;
+            }
+            else
+            {
+                _minimapIcon.color = _enemyColor;
+                _minimapIcon.sortingOrder = 5;
+            }
+        }
     }
     
     IEnumerator Co_SpawnProtection(float duration)
