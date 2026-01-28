@@ -3,8 +3,9 @@ using UnityEngine.InputSystem;
 using Photon.Pun;
 using System.Collections;
 using DG.Tweening;
+using Photon.Realtime;
 
-public class PlayerCtrl : MonoBehaviourPun, IPunObservable
+public class PlayerCtrl : MonoBehaviourPunCallbacks, IPunObservable
 {
     public static PlayerCtrl LocalPlayer;
     public enum PlayerState { Move, Dash ,Dead, Stun }
@@ -472,9 +473,12 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
         _magnetRange = 0f;
         _boosterSpeed = 0f;
 
-        // 비주얼 초기화
-        if (_shieldVisual != null) _shieldVisual.SetActive(false);
-        if (_magnetVisual != null) _magnetVisual.SetActive(false);
+        //이펙트 해제
+        if (photonView.IsMine)
+        {
+            photonView.RPC(nameof(RPC_SyncItemVisual), RpcTarget.All, ItemType.Shield, false);
+            photonView.RPC(nameof(RPC_SyncItemVisual), RpcTarget.All, ItemType.Magnet, false);
+        }
 
         // 사운드 중단 (자석 루프 사운드 등)
         SoundManager.Instance?.StopLoopSFX();
@@ -639,8 +643,8 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
     IEnumerator Co_ShieldEffect(float duration)
     {
         _isShield = true;
-        if (_shieldVisual != null) _shieldVisual.SetActive(true);
 
+        photonView.RPC(nameof(RPC_SyncItemVisual), RpcTarget.All, ItemType.Shield, true);
         SoundManager.Instance.PlaySFX("sfx_Shield_Start");
 
         yield return new WaitForSeconds(duration * 0.8f);
@@ -650,11 +654,9 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
 
         while (timeLeft > 0)
         {
-            if (_shieldVisual != null)
-            {
-                // 실드 비주얼의 활성화 상태를 반전시켜 깜빡이게 함
-                _shieldVisual.SetActive(!_shieldVisual.activeSelf);
-            }
+            //깜박거리게하기
+            bool nextState = !_shieldVisual.activeSelf;
+            photonView.RPC(nameof(RPC_SyncItemVisual), RpcTarget.All, ItemType.Shield, nextState);
 
             yield return new WaitForSeconds(blinkInterval);
             timeLeft -= blinkInterval;
@@ -662,7 +664,7 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
 
 
         _isShield = false;
-        if (_shieldVisual != null) _shieldVisual.SetActive(false);
+        photonView.RPC(nameof(RPC_SyncItemVisual), RpcTarget.All, ItemType.Shield, false);
         SoundManager.Instance.PlaySFX("sfx_Shield_Stop");
 
         _shieldCoroutine = null;
@@ -672,7 +674,7 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
     {
         _isMagnetActive = true;
         _magnetRange = range;
-        if (_magnetVisual != null) _magnetVisual.SetActive(true);
+        photonView.RPC(nameof(RPC_SyncItemVisual), RpcTarget.All, ItemType.Magnet, true);
 
         SoundManager.Instance.PlayLoopSFX("sfx_Magnet");
 
@@ -683,11 +685,8 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
 
         while (timeLeft > 0)
         {
-            if (_magnetVisual != null)
-            {
-                // 실드 비주얼의 활성화 상태를 반전시켜 깜빡이게 함
-                _magnetVisual.SetActive(!_magnetVisual.activeSelf);
-            }
+            bool nextState = !_magnetVisual.activeSelf;
+            photonView.RPC(nameof(RPC_SyncItemVisual), RpcTarget.All, ItemType.Magnet, nextState);
 
             yield return new WaitForSeconds(blinkInterval);
             timeLeft -= blinkInterval;
@@ -695,7 +694,7 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
 
 
         _isMagnetActive = false;
-        if (_magnetVisual != null) _magnetVisual.SetActive(false);
+        photonView.RPC(nameof(RPC_SyncItemVisual), RpcTarget.All, ItemType.Magnet, false);
         SoundManager.Instance.StopLoopSFX();
 
         _magnetCoroutine = null;
@@ -708,6 +707,22 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
         _boosterSpeed = 0f;
         _boostCoroutine = null;
     }
+
+    [PunRPC]
+    private void RPC_SyncItemVisual(ItemType type, bool isActive)
+    {
+        // 내가 아닌 다른 사람의 화면에서도 이펙트를 켜고 끔
+        switch (type)
+        {
+            case ItemType.Shield:
+                if (_shieldVisual != null) _shieldVisual.SetActive(isActive);
+                break;
+            case ItemType.Magnet:
+                if (_magnetVisual != null) _magnetVisual.SetActive(isActive);
+                break;
+        }
+    }
+
 
     public void ApplyStun(float duration)
     {
@@ -729,6 +744,25 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
             _currentState = PlayerState.Move;
             if (_spr != null) _spr.color = Color.white;
             if (_nameSet != null) _nameSet.SetStunVisual(false);
+        }
+    }
+
+    //다른플레이어 새로 들어왔을 때왔을때
+    public override void OnPlayerEnteredRoom(Player newPlayer)
+    {
+        if (photonView.IsMine)
+        {
+            if (_isShield)
+            {
+                // 새로 들어온 특정 유저(newPlayer)에게만 현재 실드 상태 전송
+                photonView.RPC(nameof(RPC_SyncItemVisual), newPlayer, ItemType.Shield, true);
+            }
+
+            if (_isMagnetActive)
+            {
+                // 새로 들어온 유저에게만 자석 상태 전송
+                photonView.RPC(nameof(RPC_SyncItemVisual), newPlayer, ItemType.Magnet, true);
+            }
         }
     }
 }

@@ -313,12 +313,10 @@ public class MapGenerator : MonoBehaviourPunCallbacks
 
         int[] ids = _activeNebulaDict.Keys.ToArray();
         Vector3[] positions = _activeNebulaDict.Values.Select(v => v.transform.position).ToArray();
-        int[] dataIndices = _activeNebulaDict.Values.Select(v => {
+        int[] dataIndices = _activeNebulaDict.Values.Select(v => v.GetComponent<Nebula>().DataIndex).ToArray();
+        float[] remainingTimes = _activeNebulaDict.Values.Select(v => v.GetComponent<Nebula>().RemainingLifeTime).ToArray();
 
-            return v.GetComponent<Nebula>().DataIndex;
-        }).ToArray();
-
-        photonView.RPC(nameof(RPC_SyncNebulaBatch), targetPlayer, ids, positions, dataIndices);
+        photonView.RPC(nameof(RPC_SyncNebulaBatch), targetPlayer, ids, positions, dataIndices, remainingTimes);
     }
 
     private void SyncItemsToNewPlayer(Player targetPlayer)
@@ -354,17 +352,19 @@ public class MapGenerator : MonoBehaviourPunCallbacks
                     Vector3 spawnPos = new Vector3(x, y, 0);
                     int dataIdx = Random.Range(0, _nebulaTypes.Length);
                     int newId = _nebulaIdCounter++;
+                    //마스터가 지속시간도 결정
+                    float lifeTime = Random.Range(_nebulaTypes[dataIdx].minDuration, _nebulaTypes[dataIdx].maxDuration);
 
-                    photonView.RPC(nameof(RPC_SpawnNebula), RpcTarget.All, spawnPos, dataIdx, newId);
+                    photonView.RPC(nameof(RPC_SpawnNebula), RpcTarget.All, spawnPos, dataIdx, newId, lifeTime);
 
-                    StartCoroutine(Co_DestroyNebulaAfterTime(newId, 20f)); //마스터가 파괴하게 예약
+                    StartCoroutine(Co_DestroyNebulaAfterTime(newId, lifeTime)); //마스터가 파괴하게 예약
                 }
             }
         }
     }
 
     [PunRPC]
-    private void RPC_SpawnNebula(Vector3 pos,int dataIdx, int nebulaId)
+    private void RPC_SpawnNebula(Vector3 pos,int dataIdx, int nebulaId, float lifeTime)
     {
         if (_activeNebulaDict.ContainsKey(nebulaId)) return;
 
@@ -373,16 +373,16 @@ public class MapGenerator : MonoBehaviourPunCallbacks
         nebulaObj.SetActive(true);
 
         // Setup 시 ID와 인덱스 저장
-        nebulaObj.GetComponent<Nebula>().Setup(_nebulaTypes[dataIdx], dataIdx, nebulaId);
+        nebulaObj.GetComponent<Nebula>().Setup(_nebulaTypes[dataIdx], dataIdx, nebulaId, lifeTime);
         _activeNebulaDict[nebulaId] = nebulaObj;
     }
 
     [PunRPC]
-    private void RPC_SyncNebulaBatch(int[] ids, Vector3[] positions, int[] dataIndices)
+    private void RPC_SyncNebulaBatch(int[] ids, Vector3[] positions, int[] dataIndices,float[] remainingTimes)
     {
         for (int i = 0; i < ids.Length; i++)
         {
-            RPC_SpawnNebula(positions[i], dataIndices[i], ids[i]);
+            RPC_SpawnNebula(positions[i], dataIndices[i], ids[i], remainingTimes[i]);
         }
     }
 

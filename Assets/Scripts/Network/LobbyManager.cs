@@ -64,6 +64,8 @@ public class LobbyManager : MonoBehaviourPunCallbacks
     {
         LobbyUIManager.Instance.UpdateStatus("서버 연결 완료! start 누르세요");
         LobbyUIManager.Instance.SetJoinButtonActive(true);
+
+        CleanUpDatabase();
     }
 
     public override void OnJoinRandomFailed(short returnCode, string message)
@@ -77,4 +79,12 @@ public class LobbyManager : MonoBehaviourPunCallbacks
         if (PhotonNetwork.IsMasterClient) PhotonNetwork.LoadLevel("InGame");
     }
 
+    private async void CleanUpDatabase()
+    {
+        if (FirebaseManager.Instance != null)
+        {
+            // 50위 밖 + 7일 지난 데이터 정리 실행
+            await FirebaseManager.Instance.CleanOldData();
+        }
+    }
 }
