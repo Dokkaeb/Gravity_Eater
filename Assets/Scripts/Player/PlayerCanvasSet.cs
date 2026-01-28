@@ -3,7 +3,7 @@ using TMPro;
 using Photon.Pun;
 using DG.Tweening;
 
-public class NickNameSet : MonoBehaviourPun
+public class PlayerCanvasSet : MonoBehaviourPun
 {
     [Header("닉네임")]
     [SerializeField] TextMeshProUGUI _nameTxt;
@@ -12,6 +12,7 @@ public class NickNameSet : MonoBehaviourPun
     [Header("상태 아이콘")]
     [SerializeField] GameObject _stunIcon;
     [SerializeField] GameObject _slowIcon;
+    [SerializeField] GameObject _protectIcon;
 
     PhotonView _pv;
     Transform _playerTransform;
@@ -72,9 +73,24 @@ public class NickNameSet : MonoBehaviourPun
         }
     }
 
+    public void SetProtectVisual(bool isProtect)
+    {
+        if (_protectIcon == null) return;
+
+        _protectIcon.transform.DOKill();
+        _protectIcon.SetActive(isProtect);
+
+        if (isProtect)
+        {
+            _protectIcon.transform.localScale = Vector3.one;
+            _protectIcon.transform.DOPunchScale(Vector3.one * 0.2f, 10f, vibrato: 5, elasticity: 0.5f);
+        }
+    }
+
     private void OnDestroy()
     {
         if (_stunIcon != null) _stunIcon.transform.DOKill();
         if (_slowIcon != null) _slowIcon.transform.DOKill();
+        if (_protectIcon != null) _protectIcon.transform.DOKill();
     }
 }

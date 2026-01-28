@@ -42,7 +42,7 @@ public class PlayerCtrl : MonoBehaviourPunCallbacks, IPunObservable
     bool _isBlackHole = false;
     Tween _scaleTween;
     float _logicScale = 1f;
-    NickNameSet _nameSet;
+    PlayerCanvasSet _nameSet;
 
     [Header("행성스킨 SO")]
     [SerializeField] PlanetSkins _planetSkins;
@@ -84,7 +84,7 @@ public class PlayerCtrl : MonoBehaviourPunCallbacks, IPunObservable
     {
         _rb = GetComponent<Rigidbody2D>();
         _spr = GetComponent<SpriteRenderer>();
-        _nameSet = GetComponentInChildren<NickNameSet>();
+        _nameSet = GetComponentInChildren<PlayerCanvasSet>();
 
         if (_dashTrail != null)
         {
@@ -102,7 +102,7 @@ public class PlayerCtrl : MonoBehaviourPunCallbacks, IPunObservable
             props.Add("IsInvincible", false);
             PhotonNetwork.LocalPlayer.SetCustomProperties(props);
 
-            StartCoroutine(Co_SpawnProtection(2f)); // 스폰 보호
+            StartCoroutine(Co_SpawnProtection(10f)); // 스폰 보호
 
             // 카메라 매니저에게 나를 타겟으로 설정하라고 알림
             if (CamFollow.Instance != null)
@@ -139,34 +139,49 @@ public class PlayerCtrl : MonoBehaviourPunCallbacks, IPunObservable
         _isInvincible = true;
         Debug.Log("잠깐 무적");
 
+        photonView.RPC(nameof(RPC_SyncInvincibleVisual), RpcTarget.All, true);
+
         //포톤 커스텀 프로퍼티에 무적상태 등록
         ExitGames.Client.Photon.Hashtable props = new ExitGames.Client.Photon.Hashtable();
         props.Add("IsInvincible", true);
         PhotonNetwork.LocalPlayer.SetCustomProperties(props);
 
-        //반투명
-        if (_spr != null)
-        {
-            Color c = _spr.color;
-            c.a = 0.5f;
-            _spr.color = c;
-        }
-
         yield return new WaitForSeconds(duration);
 
         _isInvincible = false;
+
+        photonView.RPC(nameof(RPC_SyncInvincibleVisual), RpcTarget.All, false);
 
         //무적해제 프로퍼티 업데이트
         props["IsInvincible"] = false;
         PhotonNetwork.LocalPlayer.SetCustomProperties(props);
 
+        Debug.Log("보호끝");
+    }
+    [PunRPC]
+    private void RPC_SyncInvincibleVisual(bool isInvincible)
+    {
         if (_spr != null)
         {
-            Color c = _spr.color;
-            c.a = 1f;
-            _spr.color = c;
+            if (_nameSet != null) _nameSet.SetProtectVisual(isInvincible);
+
+            _spr.DOKill();
+
+            if (isInvincible)
+            {
+                // 황금색으로
+                Color goldColor = new Color(1f, 0.85f, 0f, 0.6f); // 약간의 투명도 포함
+                _spr.color = goldColor;
+                //반짝거리기
+                _spr.DOFade(0.3f, 0.5f).SetLoops(-1, LoopType.Yoyo);
+            }
+            else
+            {
+                // 무적 해제 시 원래 색상과 불투명도로 복구
+                _spr.color = Color.white;
+                _spr.DOFade(1f, 0.2f);
+            }
         }
-        Debug.Log("보호끝");
     }
     private void OnDestroy()
     {
@@ -424,7 +439,7 @@ public class PlayerCtrl : MonoBehaviourPunCallbacks, IPunObservable
             _isShield = false;
             Debug.Log("실드 방어로 생존");
             if (_shieldVisual != null) _shieldVisual.SetActive(false);
-            StartCoroutine(Co_SpawnProtection(0.5f)); //잠깐 무적주기
+            StartCoroutine(Co_SpawnProtection(2f)); //잠깐 무적주기
             return;
         }
 
@@ -752,6 +767,10 @@ public class PlayerCtrl : MonoBehaviourPunCallbacks, IPunObservable
     {
         if (photonView.IsMine)
         {
+            if (_isInvincible)
+            {
+                photonView.RPC(nameof(RPC_SyncInvincibleVisual), newPlayer, true);
+            }
             if (_isShield)
             {
                 // 새로 들어온 특정 유저(newPlayer)에게만 현재 실드 상태 전송
