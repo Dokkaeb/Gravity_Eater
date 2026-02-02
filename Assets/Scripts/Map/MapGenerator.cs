@@ -209,7 +209,7 @@ public class MapGenerator : MonoBehaviourPunCallbacks
         int valuePerLoot = 10;
         int count = Mathf.Max(1, Mathf.FloorToInt(lootScore / valuePerLoot));
 
-        // 기존의 생성 로직 진행...
+        // 생성 로직
         int sentCount = 0;
         while (sentCount < count)
         {
@@ -221,7 +221,7 @@ public class MapGenerator : MonoBehaviourPunCallbacks
             {
                 ids[i] = _lootIdCounter++;
                 // 사방으로 퍼지는 범위 조절 (갯수가 많을수록 더 넓게)
-                float spreadRange = 2f + (count * 0.05f);
+                float spreadRange = 2f + (count * 0.5f);
                 positions[i] = pos + (Vector3)Random.insideUnitCircle * spreadRange;
             }
 

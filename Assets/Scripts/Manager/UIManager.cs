@@ -101,7 +101,7 @@ public class UIManager : MonoBehaviour
         if(_deathPanel != null)
         {
             _deathPanel.SetActive(true);
-            _finalScoreTxt.text = $"Final Score: {finalScore:F0}";
+            _finalScoreTxt.text = $"Score: {finalScore:F0}";
         }
         ShowGlobalLeaderboard(true);
     }
