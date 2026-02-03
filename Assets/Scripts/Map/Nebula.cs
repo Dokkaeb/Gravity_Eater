@@ -1,10 +1,11 @@
-using DG.Tweening;
-using Photon.Pun;
 using System.Collections;
 using UnityEngine;
 
 public class Nebula : MonoBehaviour
 {
+    public int DataIndex { get; private set; }
+    public int NebulaId { get; private set; }
+    public float RemainingLifeTime { get; private set; }
     public enum NebulaType { Red, Blue };
     NebulaData _data;
     SpriteRenderer _spr;
@@ -20,33 +21,44 @@ public class Nebula : MonoBehaviour
     {
         _spr = GetComponent<SpriteRenderer>();
     }
-    public void Setup(NebulaData data)
+    public void Setup(NebulaData data, int dataIndex, int id, float lifeTime)
     {
         _data = data;
+        this.DataIndex = dataIndex;
+        this.NebulaId = id;
+        this.RemainingLifeTime = lifeTime;
         _spr.sprite = data.sprite;
 
         float speed = Random.Range(30f, 60f);
         float direction = (Random.value > 0.5f) ? 1f : -1f;
         _currentRotateSpeed = speed * direction;
 
-        _lifeTime = Random.Range(data.minDuration, data.maxDuration);
-        StartCoroutine(NebulaLifeCycle());
+        StopAllCoroutines();
+        StartCoroutine(NebulaAnimation(lifeTime));
     }
     private void Update()
     {
         transform.Rotate(0, 0, _currentRotateSpeed * Time.deltaTime);
+        // 마스터만 시간을 깎는 게 아니라, 각자 로컬에서도 남은 시간을 갱신 (동기화 보조용)
+        if (RemainingLifeTime > 0)
+            RemainingLifeTime -= Time.deltaTime;
     }
-    private IEnumerator NebulaLifeCycle()
+    private IEnumerator NebulaAnimation(float lifeTime)
     {
         float t = 0;
+        float animDuration = 0.5f;
+
         while (t < 1.0f)
         {
             t += Time.deltaTime * 2f;
             transform.localScale = Vector3.one * t;
             yield return null;
         }
+        transform.localScale = Vector3.one;
 
-        yield return new WaitForSeconds(_lifeTime);
+
+        float waitTime = lifeTime - (animDuration * 2);
+        yield return new WaitForSeconds(Mathf.Max(0, waitTime));
 
         while (t > 0)
         {
@@ -54,8 +66,7 @@ public class Nebula : MonoBehaviour
             transform.localScale = Vector3.one * t;
             yield return null;
         }
-
-        PoolManager.Instance.Release(gameObject);
+        transform.localScale = Vector3.zero;
     }
 
     private void OnTriggerEnter2D(Collider2D collision)
@@ -68,15 +79,21 @@ public class Nebula : MonoBehaviour
                 if (_data.type == NebulaType.Red)
                 {
                     player.AddScore(-_data.scorePenalty);
+
+                    //위치이동
                     Vector2 randomPos = new Vector2(Random.Range(-50, 50), Random.Range(-50, 50));
                     player.transform.position = randomPos;
 
-                    DOVirtual.DelayedCall(0.2f, () => {
-                        if (CamFollow.Instance != null)
-                        {
-                            CamFollow.Instance.ShakeCam(1f, 2f);
-                        }
-                    });
+                    SoundManager.Instance.PlaySFX("sfx_Bite");
+
+                    //스턴2초
+                    player.ApplyStun(2.0f);
+
+                    if (CamFollow.Instance != null)
+                    {
+                        CamFollow.Instance.FastMove(player.transform.position);
+                        CamFollow.Instance.ShakeCam(1f, 2f);
+                    }
                 }
                 else if (_data.type == NebulaType.Blue)
                 {

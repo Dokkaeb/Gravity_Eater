@@ -13,7 +13,7 @@ public class MapGenerator : MonoBehaviourPunCallbacks
     [Header("세팅")]
     [SerializeField] int _maxFoodOnMap = 1000; //맵에 유지할 먹이갯수
     [SerializeField] float _mapSize = 100f;
-    [SerializeField] int _maxItemOnMap = 10;
+    [SerializeField] int _maxItemOnMap = 20;
     [SerializeField] int initialItemCount = 5;
 
     [Header("프리팹 설정")]
@@ -34,10 +34,15 @@ public class MapGenerator : MonoBehaviourPunCallbacks
     private Dictionary<int,GameObject> _activeFoods = new Dictionary<int,GameObject>();
 
     //아이템 추적용 리스트
-    private List<GameObject> _activeItems = new List<GameObject>();
+    private Dictionary<int,GameObject> _activeItemDict = new Dictionary<int, GameObject>();
+    private Dictionary<int,GameObject> _activeNebulaDict = new Dictionary<int, GameObject>();
+
+    private HashSet<int> _eatenFoodIds = new HashSet<int>(); //늦게들어온 유저가 비활성화시킬 이미 먹은 먹이들
 
     //전리품 ID는 먹이랑 안곂치게 큰숫자부터 시작
     private int _lootIdCounter = 100000;
+    private int _nebulaIdCounter = 200000; //네뷸라 아이디
+    private int _itemIdCounter = 500000; //아이템 아이디
     private System.Random _prng;
     #endregion
 
@@ -108,7 +113,13 @@ public class MapGenerator : MonoBehaviourPunCallbacks
         {
             return;
         }
-        
+        //로컬에서 먼저 없애버리기
+        if (_activeFoods.TryGetValue(id, out GameObject food))
+        {
+            // 시각적으로만 먼저 꺼버림 (고스트 현상 방지)
+            food.SetActive(false);
+        }
+
         photonView.RPC(nameof(RPC_MasterProcessEat), RpcTarget.MasterClient, id, viewID);
     }
 
@@ -134,7 +145,12 @@ public class MapGenerator : MonoBehaviourPunCallbacks
             PoolManager.Instance.Release(food);
             _activeFoods.Remove(id);
 
-            
+            //일반먹이가 먹혔다는거 기록용
+            if (id < 100000)
+            {
+                _eatenFoodIds.Add(id);
+            }
+
             AwardScore(viewID, score);
             //일반먹이면 일정시간후 재생성
             if (id < 100000 && PhotonNetwork.IsMasterClient)
@@ -163,6 +179,12 @@ public class MapGenerator : MonoBehaviourPunCallbacks
     [PunRPC]
     private void RPC_SpawnSpecificFood(int id, Vector3 pos)
     {
+        //먹이 다시생성됬으니 목록에서 제거
+        if (id < 100000)
+        {
+            _eatenFoodIds.Remove(id);
+        }
+
         CreateFood(id, pos);
     }
     #endregion
@@ -187,7 +209,7 @@ public class MapGenerator : MonoBehaviourPunCallbacks
         int valuePerLoot = 10;
         int count = Mathf.Max(1, Mathf.FloorToInt(lootScore / valuePerLoot));
 
-        // 기존의 생성 로직 진행...
+        // 생성 로직
         int sentCount = 0;
         while (sentCount < count)
         {
@@ -199,7 +221,7 @@ public class MapGenerator : MonoBehaviourPunCallbacks
             {
                 ids[i] = _lootIdCounter++;
                 // 사방으로 퍼지는 범위 조절 (갯수가 많을수록 더 넓게)
-                float spreadRange = 2f + (count * 0.05f);
+                float spreadRange = 2f + (count * 0.5f);
                 positions[i] = pos + (Vector3)Random.insideUnitCircle * spreadRange;
             }
 
@@ -234,8 +256,29 @@ public class MapGenerator : MonoBehaviourPunCallbacks
         {
             // 마스터가 새로 들어온 유저에게만 현재 활성화된 모든 전리품 정보를 보냄
             SendCurrentLootToNewPlayer(newPlayer);
+
+            //지금 먹혀서 없는 일반먹이id목록 넘기기
+            int[] eatenIds = _eatenFoodIds.ToArray();
+            photonView.RPC(nameof(RPC_SyncEatenFoods), newPlayer, eatenIds);
+
+            //네뷸라, 아이템 동기화
+            SyncNebulasToNewPlayer(newPlayer);
+            SyncItemsToNewPlayer(newPlayer);
         }
     }
+
+    [PunRPC]
+    private void RPC_SyncEatenFoods(int[] eatenIds)
+    {
+        foreach (int id in eatenIds)
+        {
+            if (_activeFoods.TryGetValue(id, out GameObject food))
+            {
+                food.SetActive(false); // 이미 누군가 먹은 것이므로 끔                                
+            }
+        }
+    }
+
     private void SendCurrentLootToNewPlayer(Player targetPlayer)
     {
         // 현재 활성화된 전리품 중 ID가 100000 이상인 것들만 추출
@@ -250,6 +293,44 @@ public class MapGenerator : MonoBehaviourPunCallbacks
         photonView.RPC(nameof(RPC_SpawnLootBatch), targetPlayer, ids, positions);
     }
 
+    public override void OnMasterClientSwitched(Player newMasterClient)
+    {
+        Debug.Log($"방장이 변경됨{newMasterClient.NickName}");
+
+        if (newMasterClient.IsLocal)
+        {
+            StopAllCoroutines();
+
+            //함정,아이템 재시작
+            StartCoroutine(Co_NebulaSpawner());
+            StartCoroutine(Co_ItemSpawner());
+        }
+    }
+
+    private void SyncNebulasToNewPlayer(Player targetPlayer)
+    {
+        if (_activeNebulaDict.Count == 0) return;
+
+        int[] ids = _activeNebulaDict.Keys.ToArray();
+        Vector3[] positions = _activeNebulaDict.Values.Select(v => v.transform.position).ToArray();
+        int[] dataIndices = _activeNebulaDict.Values.Select(v => v.GetComponent<Nebula>().DataIndex).ToArray();
+        float[] remainingTimes = _activeNebulaDict.Values.Select(v => v.GetComponent<Nebula>().RemainingLifeTime).ToArray();
+
+        photonView.RPC(nameof(RPC_SyncNebulaBatch), targetPlayer, ids, positions, dataIndices, remainingTimes);
+    }
+
+    private void SyncItemsToNewPlayer(Player targetPlayer)
+    {
+        var activeItems = _activeItemDict.Where(kvp => kvp.Value != null && kvp.Value.activeInHierarchy).ToList();
+        if (activeItems.Count == 0) return;
+
+        int[] ids = activeItems.Select(kvp => kvp.Key).ToArray();
+        Vector3[] positions = activeItems.Select(kvp => kvp.Value.transform.position).ToArray();
+        int[] dataIndices = activeItems.Select(kvp => kvp.Value.GetComponent<ItemObject>().DataIndex).ToArray();
+
+        photonView.RPC(nameof(RPC_SyncItemBatch), targetPlayer, ids, positions, dataIndices);
+    }
+
     #endregion
 
     #region 함정(네뷸라) 생성
@@ -261,32 +342,78 @@ public class MapGenerator : MonoBehaviourPunCallbacks
         while (true)
         {
             yield return new WaitForSeconds(_nebulaSpawnInterval);
-
-            int spawnCount = 5;
-
-            for (int i = 0; i < spawnCount; i++)
+            if (PhotonNetwork.IsMasterClient)
             {
-                float x = Random.Range(-_mapSize, _mapSize);
-                float y = Random.Range(-_mapSize, _mapSize);
-                Vector3 spawnPos = new Vector3(x, y, 0);
+                int spawnCount = 5;
+                for (int i = 0; i < spawnCount; i++)
+                {
+                    float x = Random.Range(-_mapSize, _mapSize);
+                    float y = Random.Range(-_mapSize, _mapSize);
+                    Vector3 spawnPos = new Vector3(x, y, 0);
+                    int dataIdx = Random.Range(0, _nebulaTypes.Length);
+                    int newId = _nebulaIdCounter++;
+                    //마스터가 지속시간도 결정
+                    float lifeTime = Random.Range(_nebulaTypes[dataIdx].minDuration, _nebulaTypes[dataIdx].maxDuration);
 
-                int dataIdx = Random.Range(0, _nebulaTypes.Length);
+                    photonView.RPC(nameof(RPC_SpawnNebula), RpcTarget.All, spawnPos, dataIdx, newId, lifeTime);
 
-                // 마스터가 모든 클라이언트에게 개별적으로 생성 명령 전송
-                photonView.RPC(nameof(RPC_SpawnNebula), RpcTarget.All, spawnPos, dataIdx);
+                    StartCoroutine(Co_DestroyNebulaAfterTime(newId, lifeTime)); //마스터가 파괴하게 예약
+                }
             }
         }
     }
 
     [PunRPC]
-    private void RPC_SpawnNebula(Vector3 pos,int dataIdx)
+    private void RPC_SpawnNebula(Vector3 pos,int dataIdx, int nebulaId, float lifeTime)
     {
+        if (_activeNebulaDict.ContainsKey(nebulaId)) return;
+
         GameObject nebulaObj = PoolManager.Instance.Get(_nebulaPrefab);
         nebulaObj.transform.position = pos;
         nebulaObj.SetActive(true);
 
-        nebulaObj.GetComponent<Nebula>().Setup(_nebulaTypes[dataIdx]);
+        // Setup 시 ID와 인덱스 저장
+        nebulaObj.GetComponent<Nebula>().Setup(_nebulaTypes[dataIdx], dataIdx, nebulaId, lifeTime);
+        _activeNebulaDict[nebulaId] = nebulaObj;
     }
+
+    [PunRPC]
+    private void RPC_SyncNebulaBatch(int[] ids, Vector3[] positions, int[] dataIndices,float[] remainingTimes)
+    {
+        for (int i = 0; i < ids.Length; i++)
+        {
+            RPC_SpawnNebula(positions[i], dataIndices[i], ids[i], remainingTimes[i]);
+        }
+    }
+
+    public void OnNebulaDestroyed(int nebulaId)
+    {
+        if (_activeNebulaDict.ContainsKey(nebulaId))
+        {
+            _activeNebulaDict.Remove(nebulaId);
+        }
+    }
+    // 마스터만 실행하는 파괴 예약 코루틴
+    IEnumerator Co_DestroyNebulaAfterTime(int nebulaId, float delay)
+    {
+        yield return new WaitForSeconds(delay);
+
+        // 마스터가 여전히 마스터라면 모두에게 파괴 명령
+        if (PhotonNetwork.IsMasterClient)
+        {
+            photonView.RPC(nameof(RPC_FinalizeDestroyNebula), RpcTarget.All, nebulaId);
+        }
+    }
+    [PunRPC]
+    private void RPC_FinalizeDestroyNebula(int nebulaId)
+    {
+        if (_activeNebulaDict.TryGetValue(nebulaId, out GameObject nebulaObj))
+        {
+            _activeNebulaDict.Remove(nebulaId);
+            PoolManager.Instance.Release(nebulaObj);
+        }
+    }
+
     #endregion
 
     #region 아이템 생성, 파괴
@@ -299,8 +426,10 @@ public class MapGenerator : MonoBehaviourPunCallbacks
 
         int dataIdx = Random.Range(0, _itemTypes.Length);
 
+        int newId = _itemIdCounter++;
+
         // 모든 클라이언트에게 생성 명령
-        photonView.RPC(nameof(RPC_SpawnItem), RpcTarget.All, spawnPos, dataIdx);
+        photonView.RPC(nameof(RPC_SpawnItem), RpcTarget.All, spawnPos, dataIdx, newId);
     }
 
     IEnumerator Co_ItemSpawner()
@@ -309,17 +438,30 @@ public class MapGenerator : MonoBehaviourPunCallbacks
 
         while (true)
         {
-            // 현재 맵에 깔린 아이템 개수 체크 (리스트에서 비활성화된 것은 제거)
-            _activeItems.RemoveAll(item => item == null || !item.activeInHierarchy);
+            // 딕셔너리에서 이미 먹힌 데이터 정리
+            var keysToRemove = _activeItemDict
+                .Where(kvp => kvp.Value == null || !kvp.Value.activeInHierarchy)
+                .Select(kvp => kvp.Key)
+                .ToList();
 
-            // 최대 개수보다 적을 때만 생성
-            if (_activeItems.Count < _maxItemOnMap)
+            foreach (var key in keysToRemove) _activeItemDict.Remove(key);
+
+            //마스터가 아이템 생성 진행
+            if (PhotonNetwork.IsMasterClient)
             {
-                int spawnBatch = Mathf.Min(3, _maxItemOnMap - _activeItems.Count);
+                int itemsToSpawn = 5; // 한 번에 생성하고 싶은 개수
 
-                for (int i = 0; i < spawnBatch; i++)
+                for (int i = 0; i < itemsToSpawn; i++)
                 {
-                    SpawnRandomItem();
+                    // 맵에 깔린 아이템이 최대치를 넘지 않을 때만 생성
+                    if (_activeItemDict.Count < _maxItemOnMap)
+                    {
+                        SpawnRandomItem();
+                    }
+                    else
+                    {
+                        break; // 최대치에 도달하면 더 이상 생성하지 않고 중단
+                    }
                 }
             }
 
@@ -329,54 +471,58 @@ public class MapGenerator : MonoBehaviourPunCallbacks
     }
 
     [PunRPC]
-    private void RPC_SpawnItem(Vector3 pos,int dataIdx)
+    private void RPC_SpawnItem(Vector3 pos, int dataIdx, int itemId)
     {
+        // 이미 딕셔너리에 있다면 중복 생성 방지
+        if (_activeItemDict.ContainsKey(itemId)) return;
+
         GameObject itemObj = PoolManager.Instance.Get(_itemPrefab);
         itemObj.transform.position = pos;
         itemObj.SetActive(true);
 
-        itemObj.GetComponent<ItemObject>().Setup(_itemTypes[dataIdx]);
+        // Setup 시 dataIdx도 저장하도록 ItemObject 스크립트가 수정되어야 함
+        itemObj.GetComponent<ItemObject>().Setup(_itemTypes[dataIdx], itemId, dataIdx);
 
-        // 생성된 아이템을 리스트에 추가하여 관리
-        if (!_activeItems.Contains(itemObj))
-        {
-            _activeItems.Add(itemObj);
-        }
+        _activeItemDict[itemId] = itemObj;
     }
 
-    public void RequestDestroyItem(Vector3 pos)
+    public void RequestDestroyItem(int itemId)
     {
-        photonView.RPC(nameof(RPC_MasterDestroyItem), RpcTarget.MasterClient, pos);
+        photonView.RPC(nameof(RPC_MasterDestroyItem), RpcTarget.MasterClient, itemId);
     }
     [PunRPC]
-    private void RPC_MasterDestroyItem(Vector3 pos)
+    private void RPC_MasterDestroyItem(int itemId)
     {
+        if (!PhotonNetwork.IsMasterClient) return;
         // 마스터가 모두에게 삭제 명령
-        photonView.RPC(nameof(RPC_FinalizeDestroyItem), RpcTarget.All, pos);
+        if (_activeItemDict.ContainsKey(itemId))
+        {
+            photonView.RPC(nameof(RPC_FinalizeDestroyItem), RpcTarget.All, itemId);
+        }
     }
     [PunRPC]
-    private void RPC_FinalizeDestroyItem(Vector3 pos)
+    private void RPC_FinalizeDestroyItem(int itemId)
     {
-        // 해당 위치에 있는 아이템을 찾아서 삭제 (또는 풀에 반환)
-        // _activeItems 리스트에서 가장 가까운 아이템을 찾습니다.
-        GameObject targetItem = null;
-        float minDist = 0.5f; // 오차 범위
-
-        foreach (var item in _activeItems)
+        if (_activeItemDict.TryGetValue(itemId, out GameObject targetItem))
         {
-            if (item != null && Vector3.Distance(item.transform.position, pos) < minDist)
-            {
-                targetItem = item;
-                break;
-            }
-        }
-
-        if (targetItem != null)
-        {
-            _activeItems.Remove(targetItem);
+            _activeItemDict.Remove(itemId);
             PoolManager.Instance.Release(targetItem);
         }
     }
 
+    [PunRPC]
+    private void RPC_SyncItemBatch(int[] ids, Vector3[] positions, int[] dataIndices)
+    {
+        for (int i = 0; i < ids.Length; i++)
+        {
+            if (_activeItemDict.ContainsKey(ids[i])) continue;
+
+            GameObject itemObj = PoolManager.Instance.Get(_itemPrefab);
+            itemObj.transform.position = positions[i];
+            itemObj.SetActive(true);
+            itemObj.GetComponent<ItemObject>().Setup(_itemTypes[dataIndices[i]], ids[i], dataIndices[i]);
+            _activeItemDict[ids[i]] = itemObj;
+        }
+    }
     #endregion
 }

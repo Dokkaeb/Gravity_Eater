@@ -10,15 +10,20 @@ public class ItemObject : MonoBehaviourPun
 
     ItemData _data;
     SpriteRenderer _spr;
+    int _itemId;
+
+    public int DataIndex { get; private set; }
 
     private void Awake()
     {
         _spr = GetComponent<SpriteRenderer>();
     }
     
-    public void Setup(ItemData data)
+    public void Setup(ItemData data,int id, int dataIndex)
     {
         _data = data;
+        _itemId = id;
+        this.DataIndex = dataIndex;
         _spr.sprite = data.itemSprite;
     }
     private void Start()
@@ -37,9 +42,11 @@ public class ItemObject : MonoBehaviourPun
 
             if(player != null && player.photonView.IsMine)
             {
+                gameObject.SetActive(false);
+
                 player.ApplyItemEffect(_data);
                 
-                MapGenerator.Instance.RequestDestroyItem(transform.position);
+                MapGenerator.Instance.RequestDestroyItem(_itemId);
             }
         }
     }

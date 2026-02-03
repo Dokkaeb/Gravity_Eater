@@ -59,7 +59,7 @@ public class FirebaseManager : MonoBehaviour
             _initializationTask.TrySetException(e);
         }
     }
-    // ID를 새로 발급
+    // ID를 매번 랜덤생성
     public void GenerateNewUserID()
     {
         _userID = "User_" + Guid.NewGuid().ToString().Substring(0, 8);
@@ -75,11 +75,12 @@ public class FirebaseManager : MonoBehaviour
         var data = new Dictionary<string, object>
         {
             {"nickname",nickname },
-            {"score",score }
+            {"score",score },
+            {"timestamp", ServerValue.Timestamp}
         };
 
         await _dbRef.Child("leaderboard").Child(_userID).SetValueAsync(data);
-        Debug.Log("Firebase 점수 업데이트 성공");
+        Debug.Log("Firebase 점수 및 시간 업데이트 성공");
     }
 
     //상위 10명 데이터 가져오기
@@ -136,5 +137,57 @@ public class FirebaseManager : MonoBehaviour
         }
 
         return scores;
+    }
+
+    // 오래된 데이터 정리
+    public async Task CleanOldData()
+    {
+        if (_dbRef == null) return;
+
+        Debug.Log("[Firebase] 오래된 데이터 청소 시작...");
+
+        var snapshot = await _dbRef.Child("leaderboard").GetValueAsync();
+
+        if (!snapshot.Exists) return;
+
+        long currentTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        long oneDaysMs = 24 * 60 * 60 * 1000; // 1일 24시간 기준으로 삭제
+
+        // 데이터를 리스트로 변환하여 점수 순으로 정렬
+        List<DataSnapshot> allEntries = new List<DataSnapshot>();
+        foreach (var child in snapshot.Children)
+        {
+            allEntries.Add(child);
+        }
+
+        // 점수 내림차순 정렬 (높은 점수가 앞)
+        allEntries.Sort((a, b) => {
+            float s1 = Convert.ToSingle(b.Child("score").Value);
+            float s2 = Convert.ToSingle(a.Child("score").Value);
+            return s1.CompareTo(s2);
+        });
+
+        int deleteCount = 0;
+        for (int i = 0; i < allEntries.Count; i++)
+        {
+            // 50위 이내 데이터는 무조건 보존
+            if (i < 50) continue;
+
+            // 50위 밖의 데이터 중에서 시간 체크
+            var timestampObj = allEntries[i].Child("timestamp").Value;
+            if (timestampObj != null)
+            {
+                long recordTime = Convert.ToInt64(timestampObj);
+                // 현재 시간 - 기록 시간 > 1일
+                if (currentTime - recordTime > oneDaysMs)
+                {
+                    // 1일 지난 데이터 삭제
+                    await allEntries[i].Reference.RemoveValueAsync();
+                    deleteCount++;
+                }
+            }
+        }
+
+        Debug.Log($"[Firebase] 청소 완료: {deleteCount}개의 오래된 데이터 삭제됨.");
     }
 }

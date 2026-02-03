@@ -3,11 +3,14 @@ using UnityEngine.InputSystem;
 using Photon.Pun;
 using System.Collections;
 using DG.Tweening;
+using Photon.Realtime;
 
-public class PlayerCtrl : MonoBehaviourPun, IPunObservable
+public class PlayerCtrl : MonoBehaviourPunCallbacks, IPunObservable
 {
     public static PlayerCtrl LocalPlayer;
-    public enum PlayerState { Move, Dash ,Dead }
+    public enum PlayerState { Move, Dash ,Dead, Stun }
+
+    #region 필드, 프로퍼티
 
     [Header("기본세팅")]
     [SerializeField] PlayerState _currentState = PlayerState.Move;
@@ -39,6 +42,7 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
     bool _isBlackHole = false;
     Tween _scaleTween;
     float _logicScale = 1f;
+    PlayerCanvasSet _nameSet;
 
     [Header("행성스킨 SO")]
     [SerializeField] PlanetSkins _planetSkins;
@@ -58,6 +62,11 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
     Coroutine _magnetCoroutine;
     Coroutine _boostCoroutine;
 
+    [Header("미니맵 설정")]
+    [SerializeField] SpriteRenderer _minimapIcon;
+    [SerializeField] Color _myColor = Color.green;
+    [SerializeField] Color _enemyColor = Color.red;
+
     public float SlowMultiplier => _slowMultiplier;
     public float MagnetRange => _magnetRange * (transform.localScale.x * 0.8f);
     public float LogicScale => _logicScale;
@@ -69,11 +78,13 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
     SpriteRenderer _spr;
     ParticleSystem _dashTrailParticle;
     Texture2D _currentSkinTex;
+    #endregion
 
     private void Awake()
     {
         _rb = GetComponent<Rigidbody2D>();
         _spr = GetComponent<SpriteRenderer>();
+        _nameSet = GetComponentInChildren<PlayerCanvasSet>();
 
         if (_dashTrail != null)
         {
@@ -86,7 +97,12 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
         if (photonView.IsMine)
         {
             LocalPlayer = this;
-            StartCoroutine(Co_SpawnProtection(2f)); // 스폰 보호
+            //시작하자마자 무적상태 명시적으로 끄고 시작
+            ExitGames.Client.Photon.Hashtable props = new ExitGames.Client.Photon.Hashtable();
+            props.Add("IsInvincible", false);
+            PhotonNetwork.LocalPlayer.SetCustomProperties(props);
+
+            StartCoroutine(Co_SpawnProtection(10f)); // 스폰 보호
 
             // 카메라 매니저에게 나를 타겟으로 설정하라고 알림
             if (CamFollow.Instance != null)
@@ -103,7 +119,19 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
                 UIManager.Instance.ConnectScore(_currentScore);
             }
         }
-
+        if (_minimapIcon != null)
+        {
+            if (photonView.IsMine)
+            {
+                _minimapIcon.color = _myColor;
+                _minimapIcon.sortingOrder = 10;
+            }
+            else
+            {
+                _minimapIcon.color = _enemyColor;
+                _minimapIcon.sortingOrder = 5;
+            }
+        }
     }
     
     IEnumerator Co_SpawnProtection(float duration)
@@ -111,25 +139,49 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
         _isInvincible = true;
         Debug.Log("잠깐 무적");
 
-        //반투명
-        if(_spr != null)
-        {
-            Color c = _spr.color;
-            c.a = 0.5f;
-            _spr.color = c;
-        }
+        photonView.RPC(nameof(RPC_SyncInvincibleVisual), RpcTarget.All, true);
+
+        //포톤 커스텀 프로퍼티에 무적상태 등록
+        ExitGames.Client.Photon.Hashtable props = new ExitGames.Client.Photon.Hashtable();
+        props.Add("IsInvincible", true);
+        PhotonNetwork.LocalPlayer.SetCustomProperties(props);
 
         yield return new WaitForSeconds(duration);
 
         _isInvincible = false;
 
+        photonView.RPC(nameof(RPC_SyncInvincibleVisual), RpcTarget.All, false);
+
+        //무적해제 프로퍼티 업데이트
+        props["IsInvincible"] = false;
+        PhotonNetwork.LocalPlayer.SetCustomProperties(props);
+
+        Debug.Log("보호끝");
+    }
+    [PunRPC]
+    private void RPC_SyncInvincibleVisual(bool isInvincible)
+    {
         if (_spr != null)
         {
-            Color c = _spr.color;
-            c.a = 1f;
-            _spr.color = c;
+            if (_nameSet != null) _nameSet.SetProtectVisual(isInvincible);
+
+            _spr.DOKill();
+
+            if (isInvincible)
+            {
+                // 황금색으로
+                Color goldColor = new Color(1f, 0.85f, 0f, 0.6f); // 약간의 투명도 포함
+                _spr.color = goldColor;
+                //반짝거리기
+                _spr.DOFade(0.3f, 0.5f).SetLoops(-1, LoopType.Yoyo);
+            }
+            else
+            {
+                // 무적 해제 시 원래 색상과 불투명도로 복구
+                _spr.color = Color.white;
+                _spr.DOFade(1f, 0.2f);
+            }
         }
-        Debug.Log("보호끝");
     }
     private void OnDestroy()
     {
@@ -151,7 +203,7 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
 
     private void FixedUpdate()
     {
-        if (!photonView.IsMine || _currentState == PlayerState.Dead) return;
+        if (!photonView.IsMine || _currentState == PlayerState.Dead || _currentState == PlayerState.Stun) return;
 
         HandleRotation();
 
@@ -170,7 +222,7 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
 
     public void OnDashInput(InputAction.CallbackContext ctx)
     {
-        if(!photonView.IsMine || _currentState == PlayerState.Dead) return;
+        if(!photonView.IsMine || _currentState == PlayerState.Dead || _currentState == PlayerState.Stun) return;
 
         if(ctx.started && _currentScore > 0)
         {
@@ -333,10 +385,15 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
         if (isSlow)
         {
             _slowMultiplier = multiplier;
+            if (_nameSet != null) _nameSet.SetSlowVisual(true);
+            if (_spr != null) _spr.color = new Color(0.6f, 0.7f, 1f, 1f);
         }
         else
         {
             _slowMultiplier = 1f;
+            if (_nameSet != null) _nameSet.SetSlowVisual(false);
+            if (_spr != null && !_isInvincible && _currentState != PlayerState.Stun)
+                _spr.color = Color.white;
         }
     }
 
@@ -382,7 +439,7 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
             _isShield = false;
             Debug.Log("실드 방어로 생존");
             if (_shieldVisual != null) _shieldVisual.SetActive(false);
-            StartCoroutine(Co_SpawnProtection(0.5f)); //잠깐 무적주기
+            StartCoroutine(Co_SpawnProtection(2f)); //잠깐 무적주기
             return;
         }
 
@@ -431,9 +488,12 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
         _magnetRange = 0f;
         _boosterSpeed = 0f;
 
-        // 비주얼 초기화
-        if (_shieldVisual != null) _shieldVisual.SetActive(false);
-        if (_magnetVisual != null) _magnetVisual.SetActive(false);
+        //이펙트 해제
+        if (photonView.IsMine)
+        {
+            photonView.RPC(nameof(RPC_SyncItemVisual), RpcTarget.All, ItemType.Shield, false);
+            photonView.RPC(nameof(RPC_SyncItemVisual), RpcTarget.All, ItemType.Magnet, false);
+        }
 
         // 사운드 중단 (자석 루프 사운드 등)
         SoundManager.Instance?.StopLoopSFX();
@@ -598,8 +658,8 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
     IEnumerator Co_ShieldEffect(float duration)
     {
         _isShield = true;
-        if (_shieldVisual != null) _shieldVisual.SetActive(true);
 
+        photonView.RPC(nameof(RPC_SyncItemVisual), RpcTarget.All, ItemType.Shield, true);
         SoundManager.Instance.PlaySFX("sfx_Shield_Start");
 
         yield return new WaitForSeconds(duration * 0.8f);
@@ -609,11 +669,9 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
 
         while (timeLeft > 0)
         {
-            if (_shieldVisual != null)
-            {
-                // 실드 비주얼의 활성화 상태를 반전시켜 깜빡이게 함
-                _shieldVisual.SetActive(!_shieldVisual.activeSelf);
-            }
+            //깜박거리게하기
+            bool nextState = !_shieldVisual.activeSelf;
+            photonView.RPC(nameof(RPC_SyncItemVisual), RpcTarget.All, ItemType.Shield, nextState);
 
             yield return new WaitForSeconds(blinkInterval);
             timeLeft -= blinkInterval;
@@ -621,7 +679,7 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
 
 
         _isShield = false;
-        if (_shieldVisual != null) _shieldVisual.SetActive(false);
+        photonView.RPC(nameof(RPC_SyncItemVisual), RpcTarget.All, ItemType.Shield, false);
         SoundManager.Instance.PlaySFX("sfx_Shield_Stop");
 
         _shieldCoroutine = null;
@@ -631,7 +689,7 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
     {
         _isMagnetActive = true;
         _magnetRange = range;
-        if (_magnetVisual != null) _magnetVisual.SetActive(true);
+        photonView.RPC(nameof(RPC_SyncItemVisual), RpcTarget.All, ItemType.Magnet, true);
 
         SoundManager.Instance.PlayLoopSFX("sfx_Magnet");
 
@@ -642,11 +700,8 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
 
         while (timeLeft > 0)
         {
-            if (_magnetVisual != null)
-            {
-                // 실드 비주얼의 활성화 상태를 반전시켜 깜빡이게 함
-                _magnetVisual.SetActive(!_magnetVisual.activeSelf);
-            }
+            bool nextState = !_magnetVisual.activeSelf;
+            photonView.RPC(nameof(RPC_SyncItemVisual), RpcTarget.All, ItemType.Magnet, nextState);
 
             yield return new WaitForSeconds(blinkInterval);
             timeLeft -= blinkInterval;
@@ -654,7 +709,7 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
 
 
         _isMagnetActive = false;
-        if (_magnetVisual != null) _magnetVisual.SetActive(false);
+        photonView.RPC(nameof(RPC_SyncItemVisual), RpcTarget.All, ItemType.Magnet, false);
         SoundManager.Instance.StopLoopSFX();
 
         _magnetCoroutine = null;
@@ -666,5 +721,67 @@ public class PlayerCtrl : MonoBehaviourPun, IPunObservable
         yield return new WaitForSeconds(duration);
         _boosterSpeed = 0f;
         _boostCoroutine = null;
+    }
+
+    [PunRPC]
+    private void RPC_SyncItemVisual(ItemType type, bool isActive)
+    {
+        // 내가 아닌 다른 사람의 화면에서도 이펙트를 켜고 끔
+        switch (type)
+        {
+            case ItemType.Shield:
+                if (_shieldVisual != null) _shieldVisual.SetActive(isActive);
+                break;
+            case ItemType.Magnet:
+                if (_magnetVisual != null) _magnetVisual.SetActive(isActive);
+                break;
+        }
+    }
+
+
+    public void ApplyStun(float duration)
+    {
+        if (_currentState == PlayerState.Dead) return;
+        StartCoroutine(Co_StunProcess(duration));
+    }
+    IEnumerator Co_StunProcess(float duration)
+    {
+        _currentState = PlayerState.Stun;
+        _rb.linearVelocity = Vector2.zero;
+
+        if (_nameSet != null) _nameSet.SetStunVisual(true);
+        if (_spr != null) _spr.color = Color.gray;
+
+        yield return new WaitForSeconds(duration);
+
+        if(_currentState != PlayerState.Dead)
+        {
+            _currentState = PlayerState.Move;
+            if (_spr != null) _spr.color = Color.white;
+            if (_nameSet != null) _nameSet.SetStunVisual(false);
+        }
+    }
+
+    //다른플레이어 새로 들어왔을 때왔을때
+    public override void OnPlayerEnteredRoom(Player newPlayer)
+    {
+        if (photonView.IsMine)
+        {
+            if (_isInvincible)
+            {
+                photonView.RPC(nameof(RPC_SyncInvincibleVisual), newPlayer, true);
+            }
+            if (_isShield)
+            {
+                // 새로 들어온 특정 유저(newPlayer)에게만 현재 실드 상태 전송
+                photonView.RPC(nameof(RPC_SyncItemVisual), newPlayer, ItemType.Shield, true);
+            }
+
+            if (_isMagnetActive)
+            {
+                // 새로 들어온 유저에게만 자석 상태 전송
+                photonView.RPC(nameof(RPC_SyncItemVisual), newPlayer, ItemType.Magnet, true);
+            }
+        }
     }
 }
